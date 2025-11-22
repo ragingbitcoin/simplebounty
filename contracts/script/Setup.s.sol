@@ -3,10 +3,11 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/Triune.sol";
+import "../src/SimpleBounty.sol";
+import "../src/TokenRendererV2.sol";
 
 /*
-To deploy Triune contract:
+To deploy SimpleBounty contract:
 
 forge script script/Setup.s.sol:SetupScript \
     --rpc-url <your_rpc_url> \
@@ -14,7 +15,7 @@ forge script script/Setup.s.sol:SetupScript \
     --broadcast \
     --verify \
     -vvvv \
-    --sig "run(address,address,bytes)" <adept1_address> <adept2_address> <initial_art_data>
+    --sig "run(address,string)" <beneficiary_address> <storage_location>
 
 Example:
 forge script script/Setup.s.sol:SetupScript \
@@ -23,50 +24,70 @@ forge script script/Setup.s.sol:SetupScript \
     --broadcast \
     --verify \
     -vvvv \
-    --sig "run(address,address,bytes)" 0x1111... 0x2222... 0x...
+    --sig "run(address,string)" 0x1111... "data.simplebounty.eth"
 
 Note: 
 - Replace <your_rpc_url> with your RPC endpoint
 - Replace <your_private_key> with deployer private key
-- Replace <adept1_address> and <adept2_address> with the two adept addresses
-- Replace <initial_art_data> with the initial ceremony art data (bytes)
+- Replace <beneficiary_address> with the address that will receive fees
+- Replace <storage_location> with the ENS name for SimpleStorage (e.g., "data.simplebounty.eth")
 */
 
 contract SetupScript is Script {
-    function run(address adept1, address adept2, bytes memory initialArt) external {
+    function run(address beneficiary, string memory storageLocation) external {
         vm.startBroadcast();
 
         (, address msgSender,) = vm.readCallers();
         console.log("Deployer:", msgSender);
-        console.log("Adept 1:", adept1);
-        console.log("Adept 2:", adept2);
+        console.log("Beneficiary:", beneficiary);
+        console.log("Storage Location:", storageLocation);
 
-        // Deploy Triune contract with initial ceremony
-        Triune triune = new Triune(adept1, adept2, initialArt);
+        // Deploy TokenRendererV2 first
+        TokenRendererV2 renderer = new TokenRendererV2();
+        console.log("TokenRendererV2 deployed to:", address(renderer));
+
+        // Deploy SimpleBounty with renderer and storage location
+        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), storageLocation);
+        console.log("SimpleBounty deployed to:", address(bounty));
+        console.log("SimpleStorage deployed to:", address(bounty.simpleStorage()));
 
         vm.stopBroadcast();
 
-        console.log("Triune deployed to:", address(triune));
-        console.log("Initial token ID 0 minted to deployer, adept1, and adept2");
-        console.log("Total supply of token 0:", triune.totalSupply(0));
+        console.log("\n=== Deployment Summary ===");
+        console.log("TokenRendererV2:", address(renderer));
+        console.log("SimpleBounty:", address(bounty));
+        console.log("SimpleStorage:", address(bounty.simpleStorage()));
+        console.log("Beneficiary:", beneficiary);
     }
     
-    // Simplified deployment for testing (uses empty initial art)
-    function runSimple(address adept1, address adept2) external {
+    // Simplified deployment for testing (uses deployer as beneficiary and default storage location)
+    function runSimple() external {
         vm.startBroadcast();
 
         (, address msgSender,) = vm.readCallers();
         console.log("Deployer:", msgSender);
-        console.log("Adept 1:", adept1);
-        console.log("Adept 2:", adept2);
 
-        // Deploy Triune contract with empty initial ceremony art
-        Triune triune = new Triune(adept1, adept2, bytes(""));
+        // Use deployer as beneficiary
+        address beneficiary = msgSender;
+        
+        // Use default storage location
+        string memory storageLocation = "data.simplebounty.eth";
+
+        // Deploy TokenRendererV2 first
+        TokenRendererV2 renderer = new TokenRendererV2();
+        console.log("TokenRendererV2 deployed to:", address(renderer));
+
+        // Deploy SimpleBounty with renderer and storage location
+        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), storageLocation);
+        console.log("SimpleBounty deployed to:", address(bounty));
+        console.log("SimpleStorage deployed to:", address(bounty.simpleStorage()));
 
         vm.stopBroadcast();
 
-        console.log("Triune deployed to:", address(triune));
-        console.log("Initial token ID 0 minted to deployer, adept1, and adept2");
-        console.log("Total supply of token 0:", triune.totalSupply(0));
+        console.log("\n=== Deployment Summary ===");
+        console.log("TokenRendererV2:", address(renderer));
+        console.log("SimpleBounty:", address(bounty));
+        console.log("SimpleStorage:", address(bounty.simpleStorage()));
+        console.log("Beneficiary:", beneficiary);
     }
 }

@@ -23,37 +23,46 @@ format-fix:
 snapshot:
 	forge snapshot
 
+# Deploy to local hardhat node (simple - uses deployer as beneficiary)
+deploy-dev-simple:
+	forge script script/Setup.s.sol:SetupScript --rpc-url http://localhost:8545 --broadcast --sig "runSimple()" --account simplepage-deploy
+# node script/updateContracts.cjs 31337
+
 # Deploy to local hardhat node
-# Usage: make deploy-dev <beneficiary> <priceFeed>
+# Usage: make deploy-dev <beneficiary> <storageLocation>
 deploy-dev:
 	@if [ "$(words $(MAKECMDGOALS))" -ne "3" ]; then \
 		echo "Error: Two arguments required"; \
-		echo "Usage: make deploy-dev <beneficiary> <priceFeed>"; \
+		echo "Usage: make deploy-dev <beneficiary> <storageLocation>"; \
+		echo "Example: make deploy-dev 0x1234... data.simplebounty.eth"; \
+		echo "Or use: make deploy-dev-simple (uses deployer as beneficiary)"; \
 		exit 1; \
 	fi
-	forge script script/Setup.s.sol:SetupScript --rpc-url http://localhost:8545 --broadcast --sig "run(address,address)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
+	forge script script/Setup.s.sol:SetupScript --rpc-url http://localhost:8545 --broadcast --sig "run(address,string)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS))
 # node script/updateContracts.cjs 31337
 
 # Deploy script and save deployments
-# Usage: make deploy-sepolia <beneficiary> <priceFeed>
+# Usage: make deploy-sepolia <beneficiary> <storageLocation>
 deploy-sepolia:
 	@if [ "$(words $(MAKECMDGOALS))" -ne "3" ]; then \
 		echo "Error: Two arguments required"; \
-		echo "Usage: make deploy-sepolia <beneficiary> <priceFeed>"; \
+		echo "Usage: make deploy-sepolia <beneficiary> <storageLocation>"; \
+		echo "Example: make deploy-sepolia 0x1234... data.simplebounty.eth"; \
 		exit 1; \
 	fi
-	forge script script/Setup.s.sol:SetupScript --rpc-url https://sepolia.gateway.tenderly.co --broadcast --sig "run(address,address)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
+	forge script script/Setup.s.sol:SetupScript --rpc-url https://sepolia.gateway.tenderly.co --broadcast --sig "run(address,string)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
 	node script/updateContracts.cjs 11155111
 
 # Deploy to mainnet
-# Usage: make deploy <beneficiary> <priceFeed>
+# Usage: make deploy <beneficiary> <storageLocation>
 deploy:
 	@if [ "$(words $(MAKECMDGOALS))" -ne "3" ]; then \
 		echo "Error: Two arguments required"; \
-		echo "Usage: make deploy <beneficiary> <priceFeed>"; \
+		echo "Usage: make deploy <beneficiary> <storageLocation>"; \
+		echo "Example: make deploy 0x1234... data.simplebounty.eth"; \
 		exit 1; \
 	fi
-	forge script script/Setup.s.sol:SetupScript --rpc-url https://mainnet.gateway.tenderly.co --broadcast --sig "run(address,address)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
+	forge script script/Setup.s.sol:SetupScript --rpc-url https://mainnet.gateway.tenderly.co --broadcast --sig "run(address,string)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
 	node script/updateContracts.cjs 1
 
 # Test token renderers and generate SVG outputs
@@ -77,14 +86,19 @@ help:
 	@echo "  make test      - Run tests"
 	@echo "  make format    - Format code"
 	@echo "  make snapshot  - Generate gas snapshots"
-	@echo "  make run-dev   - Run local Ethereum node"
-	@echo "  make fund-dev  - Fund a development address"
-	@echo "  make deploy-dev - Deploy script and save deployments"
+	@echo "  make deploy-dev-simple - Deploy to local node (simple - uses deployer as beneficiary)"
+	@echo "  make deploy-dev <beneficiary> <storageLocation> - Deploy to local node"
+	@echo "  make deploy-sepolia <beneficiary> <storageLocation> - Deploy to Sepolia testnet"
+	@echo "  make deploy <beneficiary> <storageLocation> - Deploy to mainnet"
 	@echo "  make test-renderers - Test token renderers and generate SVGs"
 	@echo "  make clean     - Clean build artifacts"
 	@echo "  make help      - Show this help message"
+	@echo ""
+	@echo "Deployment examples:"
+	@echo "  make deploy-dev 0x1234... data.simplebounty.eth"
+	@echo "  make deploy-sepolia 0x1234... data.simplebounty.eth"
 
-.PHONY: all build test format snapshot run-dev fund-dev deploy-dev test-renderers clean help
+.PHONY: all build test format snapshot run-dev fund-dev deploy-dev-simple deploy-dev deploy-sepolia deploy test-renderers clean help
 
 %:
 	@:
