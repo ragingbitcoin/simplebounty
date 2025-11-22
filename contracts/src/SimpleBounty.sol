@@ -31,6 +31,7 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./ReverseIndexable.sol";
+import "./ITokenRenderer.sol";
 
 /// @title Simple Bounty Contract
 /// @dev Inherits from ERC1155 and ReverseIndexable. Each tokenId represents a bounty.
@@ -42,6 +43,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     
     uint256 public tokenIdCounter = 0;
     address public immutable beneficiary;
+    ITokenRenderer public tokenRenderer;
     
     // Fee is 0.05% = 5 / 10000
     uint256 private constant FEE_BPS = 5; // basis points (0.05%)
@@ -77,9 +79,12 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
 
     /// @notice Initializes the SimpleBounty contract
     /// @param _beneficiary The address that will receive fees
-    constructor(address _beneficiary) ERC1155("") {
+    /// @param _tokenRenderer The TokenRendererV2 contract address for metadata rendering
+    constructor(address _beneficiary, ITokenRenderer _tokenRenderer) ERC1155("") {
         require(_beneficiary != address(0), "Beneficiary cannot be zero address");
+        require(address(_tokenRenderer) != address(0), "TokenRenderer cannot be zero address");
         beneficiary = _beneficiary;
+        tokenRenderer = _tokenRenderer;
     }
 
     /// @notice Creates a new bounty with ERC20 tokens
@@ -185,7 +190,6 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         require(winners.length > 0, "Must have at least one winner");
         
         Bounty storage bounty = _bounties[tokenId];
-        require(bounty.amount > 0, "Bounty has no funds");
         
         // Calculate and deduct fee from bounty amount
         uint256 fee = (bounty.amount * FEE_BPS) / BPS_DENOMINATOR;
@@ -254,7 +258,17 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @param tokenId The ID of the token to query
     /// @return The URI string for the token metadata
     function uri(uint256 tokenId) public view virtual override returns (string memory) {
-        // TODO: return proper erc1155 metadata
-        return "";
+        // Check if bounty exists
+        Bounty storage bounty = _bounties[tokenId];
+        if (bounty.amount == 0) {
+            return "";
+        }
+        
+        return ITokenRenderer(tokenRenderer).renderBounty(
+            tokenId,
+            bounty.data,
+            bounty.tokenAddr,
+            bounty.amount
+        );
     }
 }

@@ -2,5 +2,5 @@
 pragma solidity ^0.8.24;
 
 interface ITokenRenderer {
-    function renderPage(uint256 tokenId) external view returns (string memory);
+    function renderBounty(uint256 tokenId, bytes32 data, address tokenAddr, uint256 amount) external view returns (string memory);
 }

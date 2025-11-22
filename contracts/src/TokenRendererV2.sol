@@ -29,191 +29,177 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./ITokenRenderer.sol";
-import "./ISimplePage.sol";
 
 contract TokenRendererV2 is ITokenRenderer {
-    ISimplePage public pages;
-
-    constructor(ISimplePage _pages) {
-        pages = _pages;
-    }
-
-    function renderPage(uint256 tokenId) public view returns (string memory) {
-        PageData memory pageData = pages.getPageData(tokenId);
-
-        // Calculate active units count
-        uint256 activeUnits = 0;
-        for (uint256 i = 0; i < pageData.units.length; i++) {
-            if (pageData.units[i] > block.timestamp) {
-                activeUnits++;
-            }
+    /// @notice Renders a SimpleBounty token as metadata
+    /// @param tokenId The bounty token ID
+    /// @param data The bounty data/description
+    /// @param tokenAddr The token address (address(0) for ETH)
+    /// @param amount The bounty amount
+    /// @return The base64-encoded JSON metadata URI
+    function renderBounty(uint256 tokenId, bytes32 data, address tokenAddr, uint256 amount) public pure returns (string memory) {
+        
+        // Determine token display info
+        string memory tokenDisplay;
+        string memory tokenSymbol;
+        if (tokenAddr == address(0)) {
+            tokenDisplay = "ETH";
+            tokenSymbol = "ETH";
+        } else {
+            tokenDisplay = _addressToShortString(tokenAddr);
+            tokenSymbol = _addressToShortString(tokenAddr);
         }
-
-        // Calculate dynamic height based on number of units
-        uint256 baseHeight = 450;
-        uint256 unitHeight = 40; // Increased from 35 to 40 for better spacing
-        uint256 unitsSectionHeight = pageData.units.length * unitHeight + 65; // 65 for header, spacing, and summary
-        uint256 totalHeight = baseHeight - 170 + unitsSectionHeight; // 170 is the original units section height
-
-        // Create SVG with dynamic height
+        
+        // Format amount display (for ETH, show in readable format)
+        string memory amountDisplay = _formatAmount(amount, tokenAddr == address(0));
+        
+        // Calculate card height based on content
+        uint256 cardHeight = 480;
+        
+        // Create SVG
         string memory svg = string(
             abi.encodePacked(
                 '<svg width="400" height="',
-                Strings.toString(totalHeight),
+                Strings.toString(cardHeight),
                 '" viewBox="0 0 400 ',
-                Strings.toString(totalHeight),
+                Strings.toString(cardHeight),
                 '" xmlns="http://www.w3.org/2000/svg">',
-                "<!-- Professional gradients and effects -->",
                 "<defs>",
-                "<!-- Enhanced pastel splash for the card -->",
-                '<radialGradient id="cardSplash" cx="30%" cy="25%" r="85%">',
-                '<stop offset="0%" stop-color="#ffeee6" stop-opacity="1" />',
-                '<stop offset="30%" stop-color="#e6fffa" stop-opacity="0.95" />',
-                '<stop offset="60%" stop-color="#ffe6e6" stop-opacity="0.9" />',
-                '<stop offset="100%" stop-color="#e6eeff" stop-opacity="0.7" />',
+                // Bounty gradient (gold/bounty theme)
+                '<radialGradient id="bountySplash" cx="30%" cy="25%" r="85%">',
+                '<stop offset="0%" stop-color="#fff9e6" stop-opacity="1" />',
+                '<stop offset="30%" stop-color="#ffe6cc" stop-opacity="0.95" />',
+                '<stop offset="60%" stop-color="#ffcc99" stop-opacity="0.9" />',
+                '<stop offset="100%" stop-color="#ffb366" stop-opacity="0.7" />',
                 "</radialGradient>",
-                "<!-- Premium card shadow -->",
+                // Premium card shadow
                 '<filter id="premiumShadow" x="-50%" y="-50%" width="200%" height="200%">',
                 '<feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.08"/>',
                 '<feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.12"/>',
                 "</filter>",
-                "<!-- Elegant header gradient -->",
-                '<linearGradient id="headerGradient" x1="0%" y1="0%" x2="100%" y2="100%">',
-                '<stop offset="0%" stop-color="#4f46e5" />',
-                '<stop offset="50%" stop-color="#6366f1" />',
-                '<stop offset="100%" stop-color="#7c3aed" />',
+                // Bounty header gradient (golden theme)
+                '<linearGradient id="bountyHeaderGradient" x1="0%" y1="0%" x2="100%" y2="100%">',
+                '<stop offset="0%" stop-color="#f59e0b" />',
+                '<stop offset="50%" stop-color="#fbbf24" />',
+                '<stop offset="100%" stop-color="#fcd34d" />',
                 "</linearGradient>",
-                "<!-- Subtle border gradient -->",
+                // Subtle border gradient
                 '<linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="100%">',
-                '<stop offset="0%" stop-color="#f1f5f9" />',
-                '<stop offset="50%" stop-color="#e2e8f0" />',
-                '<stop offset="100%" stop-color="#cbd5e1" />',
-                "</linearGradient>",
-                "<!-- Accent highlight -->",
-                '<linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">',
-                '<stop offset="0%" stop-color="#3b82f6" />',
-                '<stop offset="100%" stop-color="#8b5cf6" />',
+                '<stop offset="0%" stop-color="#fef3c7" />',
+                '<stop offset="50%" stop-color="#fde68a" />',
+                '<stop offset="100%" stop-color="#fcd34d" />',
                 "</linearGradient>",
                 "</defs>",
-                "<!-- Main card container with pastel splash -->",
+                // Main card container
                 '<rect x="25" y="25" width="350" height="',
-                Strings.toString(totalHeight - 50),
-                '" rx="24" ry="24" fill="url(#cardSplash)" stroke="url(#borderGradient)" stroke-width="1.5" filter="url(#premiumShadow)"/>',
-                "<!-- Premium header -->",
-                '<rect x="45" y="45" width="310" height="70" rx="20" ry="20" fill="white" opacity="0.7"/>',
-                "<!-- SimplePage title with refined typography -->",
-                '<text x="200" y="90" text-anchor="middle" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="32" font-weight="600" fill="#4b5563" letter-spacing="-0.5">Simple Page</text>',
-                "<!-- Domain section with modern styling -->",
-                '<rect x="45" y="135" width="310" height="70" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#e5e7eb" stroke-width="1"/>',
-                '<text x="65" y="160" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5">Domain</text>',
-                '<text x="65" y="185" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="18" font-weight="600" fill="#1f2937">',
-                pageData.domain,
-                "</text>",
-                "<!-- Units section with elegant layout -->",
-                '<rect x="45" y="225" width="310" height="',
-                Strings.toString(unitsSectionHeight),
-                '" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#e5e7eb" stroke-width="1"/>',
-                '<text x="65" y="250" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5">Units</text>'
+                Strings.toString(cardHeight - 50),
+                '" rx="24" ry="24" fill="url(#bountySplash)" stroke="url(#borderGradient)" stroke-width="1.5" filter="url(#premiumShadow)"/>',
+                // Header section
+                '<rect x="45" y="45" width="310" height="70" rx="20" ry="20" fill="white" opacity="0.8"/>',
+                '<text x="200" y="90" text-anchor="middle" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="32" font-weight="600" fill="#78350f" letter-spacing="-0.5">Simple Bounty</text>',
+                // Bounty ID section
+                '<rect x="45" y="135" width="310" height="60" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#fde68a" stroke-width="1"/>',
+                '<text x="65" y="155" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#92400e" text-transform="uppercase" letter-spacing="0.5">Bounty ID</text>',
+                '<text x="65" y="180" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="18" font-weight="600" fill="#78350f">#',
+                Strings.toString(tokenId),
+                "</text>"
             )
         );
-
-        // Add unit entries with refined styling
-        uint256 yPos = 265;
-        for (uint256 i = 0; i < pageData.units.length; i++) {
-            string memory status = pageData.units[i] > block.timestamp ? "Active" : "Expired";
-            string memory statusColor = pageData.units[i] > block.timestamp ? "#059669" : "#dc2626";
-
-            // Convert timestamp to ISO format
-            string memory isoDate = _timestampToISO(pageData.units[i]);
-
-            svg = string(
-                abi.encodePacked(
-                    svg,
-                    "<g>",
-                    '<rect x="65" y="',
-                    Strings.toString(yPos),
-                    '" width="280" height="35" rx="8" ry="8" fill="white" stroke="#f3f4f6" stroke-width="1" opacity="0.4"/>',
-                    '<text x="80" y="',
-                    Strings.toString(yPos + 20),
-                    '" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="14" fill="#374151">Unit #',
-                    Strings.toString(i + 1),
-                    ': <tspan font-weight="600" fill="',
-                    statusColor,
-                    '">',
-                    status,
-                    "</tspan> - ",
-                    isoDate,
-                    "</text>",
-                    "</g>"
-                )
-            );
-            yPos += 40; // Increased spacing between units
-        }
-
-        // Add active units summary with proper positioning
+        
+        // Amount section
         svg = string(
             abi.encodePacked(
                 svg,
-                '<text x="65" y="',
-                Strings.toString(yPos + 15),
-                '" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="12" fill="#6b7280" font-style="italic">',
-                Strings.toString(activeUnits),
-                " of ",
-                Strings.toString(pageData.units.length),
-                " units active</text>"
+                '<rect x="45" y="215" width="310" height="70" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#fde68a" stroke-width="1"/>',
+                '<text x="65" y="240" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#92400e" text-transform="uppercase" letter-spacing="0.5">Bounty Amount</text>',
+                '<text x="65" y="265" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="22" font-weight="700" fill="#78350f">',
+                amountDisplay,
+                " ",
+                tokenSymbol,
+                "</text>"
             )
         );
-
-        // Subtle branding with proper positioning
+        
+        // Token address section
+        svg = string(
+            abi.encodePacked(
+                svg,
+                '<rect x="45" y="305" width="310" height="70" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#fde68a" stroke-width="1"/>',
+                '<text x="65" y="330" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#92400e" text-transform="uppercase" letter-spacing="0.5">Token</text>',
+                '<text x="65" y="355" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="16" font-weight="600" fill="#78350f">',
+                tokenDisplay,
+                "</text>"
+            )
+        );
+        
+        // Bounty data section
+        string memory dataHex = _bytes32ToHex(data);
+        svg = string(
+            abi.encodePacked(
+                svg,
+                '<rect x="45" y="395" width="310" height="70" rx="16" ry="16" opacity="0.4" fill="rgba(255,255,255,0.7)" stroke="#fde68a" stroke-width="1"/>',
+                '<text x="65" y="420" font-family="\'Segoe UI\', system-ui, sans-serif" font-size="13" font-weight="500" fill="#92400e" text-transform="uppercase" letter-spacing="0.5">Bounty Data</text>',
+                '<text x="65" y="445" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="11" font-weight="500" fill="#78350f">',
+                _truncateHex(dataHex, 20),
+                "</text>"
+            )
+        );
+        
+        // Branding
         svg = string(
             abi.encodePacked(
                 svg,
                 '<text x="200" y="',
-                Strings.toString(totalHeight - 35),
-                '" text-anchor="middle" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="11" fill="#9ca3af" letter-spacing="1">simplepage.eth</text>',
+                Strings.toString(cardHeight - 35),
+                '" text-anchor="middle" font-family="\'SF Mono\', \'Monaco\', \'Cascadia Code\', monospace" font-size="11" fill="#a16207" letter-spacing="1">simplebounty.eth</text>',
                 "</svg>"
             )
         );
-
-        // Create attributes array with unit information
+        
+        // Create attributes array
         string memory attributes = string(
             abi.encodePacked(
                 ',"attributes":[',
-                '{"trait_type":"domain","value":"',
-                pageData.domain,
+                '{"trait_type":"Token","value":"',
+                tokenSymbol,
                 '"},',
-                '{"trait_type":"totalUnits","value":',
-                Strings.toString(pageData.units.length),
-                "},",
-                '{"trait_type":"activeUnits","value":',
-                Strings.toString(activeUnits),
-                "}"
+                '{"trait_type":"Amount","value":"',
+                amountDisplay,
+                '"},',
+                '{"trait_type":"TokenAddress","value":"',
+                _addressToHexString(tokenAddr),
+                '"},',
+                '{"trait_type":"BountyData","value":"',
+                dataHex,
+                '"}'
             )
         );
-
-        // Add unit expiration times as traits
-        for (uint256 i = 0; i < pageData.units.length && i < 5; i++) {
-            string memory isoDate = _timestampToISO(pageData.units[i]);
-            attributes = string(
-                abi.encodePacked(
-                    attributes, ',{"trait_type":"unit', Strings.toString(i + 1), 'ExpiresAt","value":"', isoDate, '"}'
-                )
-            );
-        }
-
+        
+        // Add status trait
+        string memory status = amount > 0 ? "Active" : "Claimed";
+        attributes = string(
+            abi.encodePacked(
+                attributes,
+                ',{"trait_type":"Status","value":"',
+                status,
+                '"}'
+            )
+        );
+        
         attributes = string(abi.encodePacked(attributes, "]"));
-
+        
+        // Create JSON metadata
         string memory json = Base64.encode(
             bytes(
                 string(
                     abi.encodePacked(
-                        '{"name": "Page #',
+                        '{"name": "Bounty #',
                         Strings.toString(tokenId),
-                        '", "description": "Domain: ',
-                        pageData.domain,
-                        " with ",
-                        Strings.toString(activeUnits),
-                        ' active storage units", "image": "data:image/svg+xml;base64,',
+                        '", "description": "A Simple Bounty with ',
+                        amountDisplay,
+                        ' ',
+                        tokenSymbol,
+                        '", "image": "data:image/svg+xml;base64,',
                         Base64.encode(bytes(svg)),
                         '"',
                         attributes,
@@ -222,39 +208,123 @@ contract TokenRendererV2 is ITokenRenderer {
                 )
             )
         );
-
+        
         return string(abi.encodePacked("data:application/json;base64,", json));
     }
 
-    /// @notice Converts a Unix timestamp to ISO 8601 format
-    /// @param timestamp The Unix timestamp to convert
-    /// @return The ISO formatted date string
-    function _timestampToISO(uint256 timestamp) internal pure returns (string memory) {
-        if (timestamp == 0) {
-            return "Never";
+    /// @notice Converts an address to a short hex string (0x + first 6 chars + ... + last 4 chars)
+    /// @param addr The address to convert
+    /// @return A shortened hex string representation
+    function _addressToShortString(address addr) internal pure returns (string memory) {
+        if (addr == address(0)) {
+            return "ETH";
         }
+        string memory fullHex = _addressToHexString(addr);
+        return _truncateHex(fullHex, 8);
+    }
 
-        // Convert to days since epoch for easier date calculation
-        uint256 daysSinceEpoch = timestamp / 86400;
+    /// @notice Converts an address to a hex string (without 0x prefix for internal use)
+    /// @param addr The address to convert
+    /// @return A hex string representation
+    function _addressToHexString(address addr) internal pure returns (string memory) {
+        bytes32 value = bytes32(uint256(uint160(addr)));
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(42); // 2 for "0x" + 40 for address
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
+    }
 
-        // Approximate year calculation (not exact but good enough for display)
-        uint256 year = 1970 + (daysSinceEpoch / 365);
-        uint256 remainingDays = daysSinceEpoch % 365;
+    /// @notice Converts bytes32 to a hex string
+    /// @param data The bytes32 value to convert
+    /// @return A hex string representation with 0x prefix
+    function _bytes32ToHex(bytes32 data) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(66); // 2 for "0x" + 64 for bytes32
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < 32; i++) {
+            str[2 + i * 2] = alphabet[uint8(data[i] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(data[i] & 0x0f)];
+        }
+        return string(str);
+    }
 
-        // Simple month calculation (approximate)
-        uint256 month = 1 + (remainingDays / 30);
-        uint256 day = 1 + (remainingDays % 30);
+    /// @notice Truncates a hex string to show first N chars + ... + last 4 chars
+    /// @param hexStr The hex string to truncate
+    /// @param firstChars The number of characters to show at the start
+    /// @return A truncated hex string
+    function _truncateHex(string memory hexStr, uint256 firstChars) internal pure returns (string memory) {
+        bytes memory hexBytes = bytes(hexStr);
+        if (hexBytes.length <= firstChars + 4) {
+            return hexStr;
+        }
+        
+        bytes memory result = new bytes(firstChars + 7); // firstChars + "..." (3) + 4
+        for (uint256 i = 0; i < firstChars && i < hexBytes.length; i++) {
+            result[i] = hexBytes[i];
+        }
+        result[firstChars] = ".";
+        result[firstChars + 1] = ".";
+        result[firstChars + 2] = ".";
+        
+        uint256 len = hexBytes.length;
+        for (uint256 i = 0; i < 4 && i < len; i++) {
+            result[firstChars + 3 + i] = hexBytes[len - 4 + i];
+        }
+        
+        return string(result);
+    }
 
-        return string(
-            abi.encodePacked(
-                Strings.toString(year),
-                "-",
-                month < 10 ? "0" : "",
-                Strings.toString(month),
-                "-",
-                day < 10 ? "0" : "",
-                Strings.toString(day)
-            )
-        );
+    /// @notice Formats an amount for display (handles ETH with decimal places)
+    /// @param amount The amount to format
+    /// @param isETH Whether this is ETH (native token)
+    /// @return A formatted string representation
+    function _formatAmount(uint256 amount, bool isETH) internal pure returns (string memory) {
+        if (amount == 0) {
+            return "0";
+        }
+        
+        if (isETH) {
+            // Format ETH with 4 decimal places (18 decimals -> show 4)
+            uint256 divisor = 1e14; // 10^14 to get 4 decimal places
+            uint256 whole = amount / 1e18;
+            uint256 remainder = (amount % 1e18) / divisor;
+            
+            if (remainder == 0) {
+                return Strings.toString(whole);
+            } else {
+                // Format with up to 4 decimal places, removing trailing zeros
+                string memory decimalStr = Strings.toString(remainder);
+                // Remove trailing zeros
+                bytes memory decBytes = bytes(decimalStr);
+                uint256 trailingZeros = 0;
+                for (uint256 i = decBytes.length; i > 0; i--) {
+                    if (decBytes[i - 1] == "0") {
+                        trailingZeros++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (trailingZeros == decBytes.length) {
+                    return Strings.toString(whole);
+                }
+                
+                bytes memory trimmedDec = new bytes(decBytes.length - trailingZeros);
+                for (uint256 i = 0; i < trimmedDec.length; i++) {
+                    trimmedDec[i] = decBytes[i];
+                }
+                
+                return string(abi.encodePacked(Strings.toString(whole), ".", string(trimmedDec)));
+            }
+        } else {
+            // For ERC20 tokens, just show the raw number (could be enhanced with token decimals)
+            return Strings.toString(amount);
+        }
     }
 }
