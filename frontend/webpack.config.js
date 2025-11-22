@@ -4,6 +4,9 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
 
@@ -86,6 +89,12 @@ module.exports = (env, argv) => {
       }),
       new webpack.DefinePlugin({
         'process.env.NODE_ENV': JSON.stringify(argv.mode || 'development'),
+        // Expose environment variables to the client bundle
+        'process.env.CHAIN_ID': JSON.stringify(process.env.CHAIN_ID),
+        'process.env.SEPOLIA_RPC_URL': JSON.stringify(process.env.SEPOLIA_RPC_URL),
+        'process.env.MAINNET_RPC_URL': JSON.stringify(process.env.MAINNET_RPC_URL),
+        'process.env.LOCAL_RPC_URL': JSON.stringify(process.env.LOCAL_RPC_URL),
+        'process.env.SIMPLEBOUNTY_ADDRESS': JSON.stringify(process.env.SIMPLEBOUNTY_ADDRESS),
       }),
     ],
     devServer: {

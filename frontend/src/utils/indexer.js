@@ -23,6 +23,7 @@ async function getBlockEvents(publicClient, contractAddress, blockNumber, fromBl
   }
 
   try {
+    const blockStart = performance.now();
     const logs = await publicClient.getLogs({
       address: contractAddress,
       event: parseAbiItem('event BlockPointer(uint256 previousBlock)'),
@@ -36,6 +37,10 @@ async function getBlockEvents(publicClient, contractAddress, blockNumber, fromBl
       fromBlock: BigInt(blockNumber),
       toBlock: BigInt(blockNumber),
     });
+    const blockTime = performance.now() - blockStart;
+    if (blockTime > 100) {
+      console.log(`[Indexer] Slow block fetch: block ${blockNumber} took ${blockTime.toFixed(2)}ms (${allEvents.length} events)`);
+    }
 
     return {
       blockNumber,
@@ -262,20 +267,29 @@ export function buildStateFromEvents(events) {
  * @yields {Object} Parsed event data
  */
 export async function* indexAllEvents(publicClient, contractAddress, chainId) {
+  const startTime = performance.now();
   try {
     // Get current block pointer from contract
+    const blockPointerStart = performance.now();
     const blockPointer = await publicClient.readContract({
       address: contractAddress,
       abi: contracts.abis.SimpleBounty,
       functionName: 'blockPointer',
     });
+    console.log(`[Indexer] blockPointer read took ${(performance.now() - blockPointerStart).toFixed(2)}ms`);
 
     const currentBlockPointer = Number(blockPointer);
 
     if (currentBlockPointer === 0) {
       // No activity yet
+      console.log(`[Indexer] No activity (blockPointer = 0), took ${(performance.now() - startTime).toFixed(2)}ms`);
       return;
     }
+
+    console.log(`[Indexer] Starting indexing from block ${currentBlockPointer}`);
+    let eventCount = 0;
+    let lastBlockNumber = null;
+    let lastBlockTime = performance.now();
 
     // Index all events recursively
     for await (const { event, blockNumber } of indexContractEvents(
@@ -302,12 +316,24 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
           blockNumber: Number(blockNumber),
           transactionHash: event.transactionHash,
         });
+        eventCount++;
+        
+        // Log when we move to a new block
+        if (lastBlockNumber !== null && blockNumber !== lastBlockNumber) {
+          const blockTime = performance.now() - lastBlockTime;
+          console.log(`[Indexer] Processed block ${lastBlockNumber} in ${blockTime.toFixed(2)}ms`);
+          lastBlockTime = performance.now();
+        }
+        lastBlockNumber = blockNumber;
+        
         yield parsed;
       } catch (err) {
         // Skip events that can't be decoded (might be from other contracts or unknown events)
         // This is expected for events we don't care about
       }
     }
+    const totalTime = performance.now() - startTime;
+    console.log(`[Indexer] Completed indexing: ${eventCount} events in ${totalTime.toFixed(2)}ms (avg ${(totalTime / Math.max(eventCount, 1)).toFixed(2)}ms/event)`);
   } catch (error) {
     console.error('Error indexing contract events:', error);
     throw error;

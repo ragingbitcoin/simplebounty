@@ -1,7 +1,7 @@
 import { useReadContract } from 'wagmi';
 import { useChainId } from './useChainId';
 import { contracts } from '../config/contracts';
-import { useBounties } from './useBounties';
+import { useBountiesContext } from '../contexts/BountiesContext';
 
 /**
  * Hook to get a specific bounty by tokenId
@@ -9,7 +9,7 @@ import { useBounties } from './useBounties';
 export function useBounty(tokenId) {
   const chainId = useChainId();
   const contractAddress = contracts.deployments[chainId]?.SimpleBounty;
-  const { bounties, claims } = useBounties();
+  const { bounties, claims } = useBountiesContext();
 
   // Try to get from indexed data first
   const indexedBounty = bounties.find(b => b.tokenId === Number(tokenId));

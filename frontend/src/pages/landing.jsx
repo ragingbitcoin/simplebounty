@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { usePublicClient } from 'wagmi';
-import { useBounties } from '../hooks/useBounties';
+import { useBountiesContext } from '../contexts/BountiesContext';
 import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatEther } from 'viem';
@@ -10,7 +10,7 @@ import { fetchTextData } from '../utils/dservice-upload';
 const Landing = () => {
   const navigate = useNavigate();
   const publicClient = usePublicClient();
-  const { bounties, isLoading, error } = useBounties();
+  const { bounties, isLoading, error } = useBountiesContext();
   const [descriptionTexts, setDescriptionTexts] = useState({});
 
   const formatAmount = (amount, tokenAddr) => {
@@ -25,20 +25,35 @@ const Landing = () => {
     if (!bounties || bounties.length === 0 || !publicClient) return;
 
     const fetchDescriptions = async () => {
+      const startTime = performance.now();
       const texts = {};
-      for (const bounty of bounties) {
+      
+      // Fetch all descriptions in parallel instead of sequentially
+      const fetchPromises = bounties.map(async (bounty) => {
         if (!bounty.data || bounty.data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-          texts[bounty.tokenId] = 'No description';
-          continue;
+          return { tokenId: bounty.tokenId, text: 'No description' };
         }
         try {
+          const fetchStart = performance.now();
           const text = await fetchTextData(bounty.data, publicClient);
-          texts[bounty.tokenId] = text;
+          const fetchTime = performance.now() - fetchStart;
+          if (fetchTime > 500) {
+            console.log(`[Landing] Slow description fetch for bounty ${bounty.tokenId}: ${fetchTime.toFixed(2)}ms`);
+          }
+          return { tokenId: bounty.tokenId, text };
         } catch (err) {
           console.error(`Error fetching description for bounty ${bounty.tokenId}:`, err);
-          texts[bounty.tokenId] = 'Error loading description...';
+          return { tokenId: bounty.tokenId, text: 'Error loading description...' };
         }
-      }
+      });
+
+      const results = await Promise.all(fetchPromises);
+      results.forEach(({ tokenId, text }) => {
+        texts[tokenId] = text;
+      });
+      
+      const totalTime = performance.now() - startTime;
+      console.log(`[Landing] Fetched ${bounties.length} descriptions in ${totalTime.toFixed(2)}ms (parallel)`);
       setDescriptionTexts(texts);
     };
 

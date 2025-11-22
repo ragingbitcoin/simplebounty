@@ -4,6 +4,7 @@ import { WagmiConfigProvider } from './components/wagmi-provider';
 import { BrowserRouter as Router, Routes, Route } from 'react-router';
 import { useBasename } from './hooks/useBasename';
 import { useRpcOverride } from './hooks/useRpcOverride';
+import { BountiesProvider } from './contexts/BountiesContext';
 
 import Landing from './pages/landing';
 import Bounty from './pages/bounty';
@@ -18,15 +19,17 @@ const App = () => {
 
   return (
     <WagmiConfigProvider rpcOverrides={rpcOverrides}>
-      <Router basename={basename}>
-        <Routes>
-          <Route path={ROUTES.LANDING} element={<Landing />} />
-          <Route path={ROUTES.NEW_BOUNTY} element={<NewBounty />} />
-          <Route path={ROUTES.BOUNTY} element={<Bounty />} />
-          <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
+      <BountiesProvider>
+        <Router basename={basename}>
+          <Routes>
+            <Route path={ROUTES.LANDING} element={<Landing />} />
+            <Route path={ROUTES.NEW_BOUNTY} element={<NewBounty />} />
+            <Route path={ROUTES.BOUNTY} element={<Bounty />} />
+            <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Router>
+      </BountiesProvider>
     </WagmiConfigProvider>
   );
 };
