@@ -14,14 +14,14 @@ contract TestReverseIndexable is ReverseIndexable {
 contract ReverseIndexableTest is Test {
     TestReverseIndexable public indexable;
 
-    event Indexed(uint256 previousIndexedBlock);
+    event BlockPointer(uint256 previousBlock);
 
     function setUp() public {
         indexable = new TestReverseIndexable();
     }
 
     function test_InitialState() public {
-        assertEq(indexable.lastIndexedBlock(), 0);
+        assertEq(indexable.blockPointer(), 0);
     }
 
     function test_TouchIndexUpdatesBlock() public {
@@ -29,12 +29,12 @@ contract ReverseIndexableTest is Test {
         
         indexable.callTouchIndex();
         
-        assertEq(indexable.lastIndexedBlock(), currentBlock);
+        assertEq(indexable.blockPointer(), currentBlock);
     }
 
     function test_TouchIndexEmitsEvent() public {
         vm.expectEmit(true, true, true, true);
-        emit Indexed(0);
+        emit BlockPointer(0);
         
         indexable.callTouchIndex();
     }
@@ -47,23 +47,23 @@ contract ReverseIndexableTest is Test {
         // First touch at block 100
         vm.roll(block1);
         vm.expectEmit(true, true, true, true);
-        emit Indexed(0);
+        emit BlockPointer(0);
         indexable.callTouchIndex();
-        assertEq(indexable.lastIndexedBlock(), block1);
+        assertEq(indexable.blockPointer(), block1);
 
         // Second touch at block 200
         vm.roll(block2);
         vm.expectEmit(true, true, true, true);
-        emit Indexed(block1);
+        emit BlockPointer(block1);
         indexable.callTouchIndex();
-        assertEq(indexable.lastIndexedBlock(), block2);
+        assertEq(indexable.blockPointer(), block2);
 
         // Third touch at block 300
         vm.roll(block3);
         vm.expectEmit(true, true, true, true);
-        emit Indexed(block2);
+        emit BlockPointer(block2);
         indexable.callTouchIndex();
-        assertEq(indexable.lastIndexedBlock(), block3);
+        assertEq(indexable.blockPointer(), block3);
     }
 
     function test_ReverseIndexablePattern() public {
@@ -82,7 +82,7 @@ contract ReverseIndexableTest is Test {
         }
 
         // Verify we can reconstruct the chain by reading events
-        assertEq(indexable.lastIndexedBlock(), blocks[4]);
+        assertEq(indexable.blockPointer(), blocks[4]);
     }
 }
 

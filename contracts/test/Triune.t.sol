@@ -65,19 +65,19 @@ contract TriuneTest is Test, ERC1155Holder {
         vm.prank(adept1);
         triune.safeTransferFrom(adept1, address(0x5), 0, 1, "");
         
-        assertEq(triune.lastIndexedBlock(), initialBlock + 1);
+        assertEq(triune.blockPointer(), initialBlock + 1);
     }
 
     function test_LastIndexedBlockUpdates() public {
         uint256 initialBlock = block.number;
         // Constructor already triggered touchIndex, so it should be at current block
-        assertEq(triune.lastIndexedBlock(), initialBlock);
+        assertEq(triune.blockPointer(), initialBlock);
 
         // Bind should trigger touchIndex through _mint
         vm.roll(initialBlock + 5);
         triune.bind(0, address(0x6), address(0x7), bytes("data"));
         
-        assertEq(triune.lastIndexedBlock(), initialBlock + 5);
+        assertEq(triune.blockPointer(), initialBlock + 5);
     }
 
     function test_Uri() public {

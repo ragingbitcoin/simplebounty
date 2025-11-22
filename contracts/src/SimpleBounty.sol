@@ -97,8 +97,8 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @param data The bounty data/description
     /// @param tokenAddr The ERC20 token address (must not be address(0))
     /// @param amount The bounty amount in tokens
-    function newBounty(bytes32 data, address tokenAddr, uint256 amount) external {
-        require(tokenAddr != address(0), "Use newBounty() with ETH for native token");
+    function new(bytes32 data, address tokenAddr, uint256 amount) external {
+        require(tokenAddr != address(0), "Use new() with ETH for native token");
         require(amount > 0, "Amount must be greater than 0");
         
         IERC20 token = IERC20(tokenAddr);
@@ -109,7 +109,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
 
     /// @notice Creates a new bounty with ETH
     /// @param data The bounty data/description
-    function newBounty(bytes32 data) external payable {
+    function new(bytes32 data) external payable {
         require(msg.value > 0, "Must send ETH");
         _createBounty(data, address(0), msg.value);
     }
@@ -191,7 +191,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Attempts to claim a bounty
     /// @param tokenId The bounty token ID
     /// @param data The claim data
-    function tryClaim(uint256 tokenId, bytes32 data) external tokenExists(tokenId) {
+    function makeClaim(uint256 tokenId, bytes32 data) external tokenExists(tokenId) {
         // Store data in SimpleStorage to emit ContenthashChanged event
         simpleStorage.storeSha256(data);
         
