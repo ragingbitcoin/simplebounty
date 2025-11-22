@@ -4,10 +4,10 @@ import { contracts } from '../config/contracts';
 import { uploadTextData, cidToBytes32 } from '../utils/dservice-upload';
 
 /**
- * Hook to make a claim on a bounty.
- * Uploads the claim data to dservice and stores the CID hash on-chain.
+ * Hook to update a bounty's description.
+ * Uploads the new description to dservice and stores the CID hash on-chain.
  */
-export function useMakeClaim() {
+export function useUpdateBounty() {
   const chainId = useChainId();
   const contractAddress = contracts.deployments[chainId]?.SimpleBounty;
   const publicClient = usePublicClient();
@@ -17,7 +17,7 @@ export function useMakeClaim() {
     hash,
   });
 
-  const makeClaim = async (tokenId, claimDataString) => {
+  const updateBounty = async (tokenId, dataString) => {
     if (!contractAddress) {
       throw new Error('Contract address not configured');
     }
@@ -25,21 +25,21 @@ export function useMakeClaim() {
       throw new Error('Public client not available');
     }
 
-    // Upload claim data to dservice and get CID
-    const cid = await uploadTextData(claimDataString, publicClient);
+    // Upload new description to dservice and get CID
+    const cid = await uploadTextData(dataString, publicClient);
     // Convert CID to bytes32 for on-chain storage
-    const claimData = cidToBytes32(cid);
+    const data = cidToBytes32(cid);
 
     await writeContract({
       address: contractAddress,
       abi: contracts.abis.SimpleBounty,
-      functionName: 'makeClaim',
-      args: [BigInt(tokenId), claimData],
+      functionName: 'update',
+      args: [BigInt(tokenId), data],
     });
   };
 
   return {
-    makeClaim,
+    updateBounty,
     hash,
     isPending,
     isConfirming,

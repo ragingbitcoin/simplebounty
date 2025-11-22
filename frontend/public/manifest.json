@@ -1,7 +1,7 @@
 {
-  "name": "SimplePage",
-  "short_name": "SimplePage",
-  "description": "SimplePage is a censorship resistant markdown based CMS platform and protocol.",
+  "name": "Simple Bounty",
+  "short_name": "Simple Bounty",
+  "description": "Censorship resistant bounties",
   "icons": [
     {
       "src": "/_assets/images/logo.svg",

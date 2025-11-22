@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useChainId } from './useChainId';
 import { contracts } from '../config/contracts';
-import { toBytes, pad } from 'viem';
+import { uploadTextData, cidToBytes32 } from '../utils/dservice-upload';
 
 /**
- * Hook to create a new bounty
+ * Hook to create a new bounty.
+ * Uploads the description to dservice and stores the CID hash on-chain.
  */
 export function useCreateBounty() {
   const chainId = useChainId();
   const contractAddress = contracts.deployments[chainId]?.SimpleBounty;
+  const publicClient = usePublicClient();
   const [isCreating, setIsCreating] = useState(false);
 
   const { writeContract, data: hash, error, isPending, reset } = useWriteContract();
@@ -21,12 +23,16 @@ export function useCreateBounty() {
     if (!contractAddress) {
       throw new Error('Contract address not configured');
     }
+    if (!publicClient) {
+      throw new Error('Public client not available');
+    }
 
     setIsCreating(true);
     try {
-      // Convert string to bytes32 (pad to 32 bytes)
-      const dataBytes = toBytes(dataString);
-      const data = pad(dataBytes, { size: 32 });
+      // Upload description to dservice and get CID
+      const cid = await uploadTextData(dataString, publicClient);
+      // Convert CID to bytes32 for on-chain storage
+      const data = cidToBytes32(cid);
 
       await writeContract({
         address: contractAddress,
@@ -46,12 +52,16 @@ export function useCreateBounty() {
     if (!contractAddress) {
       throw new Error('Contract address not configured');
     }
+    if (!publicClient) {
+      throw new Error('Public client not available');
+    }
 
     setIsCreating(true);
     try {
-      // Convert string to bytes32 (pad to 32 bytes)
-      const dataBytes = toBytes(dataString);
-      const data = pad(dataBytes, { size: 32 });
+      // Upload description to dservice and get CID
+      const cid = await uploadTextData(dataString, publicClient);
+      // Convert CID to bytes32 for on-chain storage
+      const data = cidToBytes32(cid);
 
       await writeContract({
         address: contractAddress,
