@@ -16,13 +16,11 @@ const Bounty = () => {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { bounty, claims, isLoading, error } = useBounty(tokenId);
-  const { makeClaim, hash: claimHash, isPending: isClaimPending, isSuccess: isClaimSuccess, error: claimError, reset: resetClaim } = useMakeClaim();
-  const { fulfillClaim, hash: fulfillHash, isPending: isFulfillPending, isSuccess: isFulfillSuccess, error: fulfillError, reset: resetFulfill } = useFulfillClaim();
+  const { makeClaim, hash: claimHash, isPending: isClaimPending, isConfirming: isClaimConfirming, isSuccess: isClaimSuccess, error: claimError, reset: resetClaim } = useMakeClaim();
+  const { fulfillClaim, hash: fulfillHash, isPending: isFulfillPending, isConfirming: isFulfillConfirming, isSuccess: isFulfillSuccess, error: fulfillError, reset: resetFulfill } = useFulfillClaim();
 
   const [claimData, setClaimData] = useState('');
-  const [winners, setWinners] = useState('');
-  const [showClaimForm, setShowClaimForm] = useState(false);
-  const [showFulfillForm, setShowFulfillForm] = useState(false);
+  const [selectedClaims, setSelectedClaims] = useState(new Set());
   const [descriptionText, setDescriptionText] = useState(null);
   const [descriptionLoading, setDescriptionLoading] = useState(false);
   const [descriptionError, setDescriptionError] = useState(null);
@@ -105,23 +103,38 @@ const Bounty = () => {
   };
 
   const handleFulfillClaim = async () => {
-    const winnerList = winners.split(',').map(w => w.trim()).filter(w => w.length > 0);
-    if (winnerList.length === 0) {
-      alert('Please enter at least one winner address');
+    if (selectedClaims.size === 0) {
+      alert('Please select at least one claim to fulfill');
       return;
     }
+    // Get the claimant addresses for the selected transaction hashes
+    const selectedTransactionHashes = Array.from(selectedClaims);
+    const winnerList = claims
+      .filter(claim => selectedTransactionHashes.includes(claim.transactionHash))
+      .map(claim => claim.claimant);
     try {
       await fulfillClaim(tokenId, winnerList);
+      setSelectedClaims(new Set());
     } catch (err) {
       console.error('Error fulfilling claim:', err);
     }
+  };
+
+  const toggleClaimSelection = (transactionHash) => {
+    const newSelected = new Set(selectedClaims);
+    if (newSelected.has(transactionHash)) {
+      newSelected.delete(transactionHash);
+    } else {
+      newSelected.add(transactionHash);
+    }
+    setSelectedClaims(newSelected);
   };
 
   const isOwner = bounty && isConnected && address && bounty.creator?.toLowerCase() === address.toLowerCase();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-base-100 p-8">
+      <div className="min-h-screen bg-base-100 p-4 sm:p-8">
         <div className="max-w-4xl mx-auto">
           <WalletInfo />
           <div className="flex justify-center items-center h-64">
@@ -134,7 +147,7 @@ const Bounty = () => {
 
   if (error || !bounty) {
     return (
-      <div className="min-h-screen bg-base-100 p-8">
+      <div className="min-h-screen bg-base-100 p-4 sm:p-8">
         <div className="max-w-4xl mx-auto">
           <WalletInfo />
           <div className="alert alert-error">
@@ -149,7 +162,7 @@ const Bounty = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-100 p-8">
+    <div className="min-h-screen bg-base-100 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
         <WalletInfo />
         
@@ -158,26 +171,24 @@ const Bounty = () => {
         </button>
 
         <TransactionStatus
-          status={isClaimPending ? 'pending' : isClaimSuccess ? 'success' : claimError ? 'error' : null}
+          status={isClaimPending || isClaimConfirming ? 'pending' : isClaimSuccess ? 'success' : claimError ? 'error' : null}
           hash={claimHash}
           error={claimError}
           isConfirmed={isClaimSuccess}
           reset={resetClaim}
           onSuccess={() => {
-            setShowClaimForm(false);
             setClaimData('');
           }}
         />
 
         <TransactionStatus
-          status={isFulfillPending ? 'pending' : isFulfillSuccess ? 'success' : fulfillError ? 'error' : null}
+          status={isFulfillPending || isFulfillConfirming ? 'pending' : isFulfillSuccess ? 'success' : fulfillError ? 'error' : null}
           hash={fulfillHash}
           error={fulfillError}
           isConfirmed={isFulfillSuccess}
           reset={resetFulfill}
           onSuccess={() => {
-            setShowFulfillForm(false);
-            setWinners('');
+            setSelectedClaims(new Set());
           }}
         />
 
@@ -231,98 +242,97 @@ const Bounty = () => {
               )}
             </div>
 
-            {isConnected && !bounty.fulfilled && (
-              <div className="divider"></div>
-            )}
-
-            {isConnected && !bounty.fulfilled && (
-              <div className="space-y-4">
-                {!isOwner && (
-                  <div>
-                    <button
-                      onClick={() => setShowClaimForm(!showClaimForm)}
-                      className="btn btn-primary w-full"
-                    >
-                      {showClaimForm ? 'Cancel' : 'Make a Claim'}
-                    </button>
-                    {showClaimForm && (
-                      <div className="mt-4 space-y-4">
-                        <textarea
-                          className="textarea textarea-bordered w-full"
-                          placeholder="Enter your claim data..."
-                          value={claimData}
-                          onChange={(e) => setClaimData(e.target.value)}
-                        />
-                        <button
-                          onClick={handleMakeClaim}
-                          disabled={isClaimPending}
-                          className="btn btn-primary w-full"
-                        >
-                          {isClaimPending ? 'Submitting...' : 'Submit Claim'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {isOwner && (
-                  <div>
-                    <button
-                      onClick={() => setShowFulfillForm(!showFulfillForm)}
-                      className="btn btn-success w-full"
-                    >
-                      {showFulfillForm ? 'Cancel' : 'Fulfill Claim'}
-                    </button>
-                    {showFulfillForm && (
-                      <div className="mt-4 space-y-4">
-                        <textarea
-                          className="textarea textarea-bordered w-full"
-                          placeholder="Enter winner addresses separated by commas (e.g., 0x123..., 0x456...)"
-                          value={winners}
-                          onChange={(e) => setWinners(e.target.value)}
-                        />
-                        <button
-                          onClick={handleFulfillClaim}
-                          disabled={isFulfillPending}
-                          className="btn btn-success w-full"
-                        >
-                          {isFulfillPending ? 'Processing...' : 'Distribute Bounty'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isConnected && !bounty.fulfilled && (
-              <div className="alert alert-info">
-                <span>Connect your wallet to make a claim</span>
-              </div>
-            )}
           </div>
         </div>
 
         {claims.length > 0 && (
           <div className="card bg-base-200 shadow-xl mt-6">
             <div className="card-body">
-              <h2 className="text-2xl font-bold mb-4">Claims ({claims.length})</h2>
-              <div className="space-y-4">
-                {claims.map((claim, idx) => (
-                  <div key={idx} className="border-b border-base-300 pb-4 last:border-0">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <p className="font-semibold">{formatAddress(claim.claimant)}</p>
-                        <p className="text-sm text-base-content/60 mt-1 whitespace-pre-wrap">
-                          {claimTexts[claim.transactionHash] || 'Loading claim data...'}
-                        </p>
-                      </div>
-                      <div className="text-sm text-base-content/60 ml-4">
-                        Block: {claim.blockNumber}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4">
+                <h2 className="text-xl sm:text-2xl font-bold">Claims ({claims.length})</h2>
+                {isOwner && !bounty.fulfilled && selectedClaims.size > 0 && (
+                  <button
+                    onClick={handleFulfillClaim}
+                    disabled={isFulfillPending}
+                    className="btn btn-success btn-sm w-full sm:w-auto"
+                  >
+                    {isFulfillPending ? 'Processing...' : `Fulfill ${selectedClaims.size} Selected`}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-3">
+                {claims.map((claim, idx) => {
+                  const isSelected = selectedClaims.has(claim.transactionHash);
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-4 border rounded-md ${
+                        isOwner && !bounty.fulfilled
+                          ? isSelected
+                            ? 'border-primary bg-primary/10 cursor-pointer'
+                            : 'border-base-300 cursor-pointer hover:border-base-content/20'
+                          : 'border-base-300'
+                      }`}
+                      onClick={() => isOwner && !bounty.fulfilled && toggleClaimSelection(claim.transactionHash)}
+                    >
+                      <div className="flex items-start gap-3">
+                        {isOwner && !bounty.fulfilled && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleClaimSelection(claim.transactionHash)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="checkbox checkbox-primary mt-1"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="font-semibold font-mono">{formatAddress(claim.claimant)}</p>
+                            <span className="text-xs text-base-content/60">Block: {claim.blockNumber}</span>
+                          </div>
+                          <p className="text-sm text-base-content/80 whitespace-pre-wrap">
+                            {claimTexts[claim.transactionHash] || 'Loading claim data...'}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+              {isOwner && !bounty.fulfilled && claims.length > 0 && selectedClaims.size === 0 && (
+                <div className="mt-4 text-sm text-base-content/60 text-center">
+                  Select claims above to fulfill them
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Make a Claim Form */}
+        {!bounty.fulfilled && (
+          <div className="card bg-base-200 shadow-xl mt-6">
+            <div className="card-body">
+              <h3 className="text-lg font-semibold mb-4">Make a Claim</h3>
+              <div className="space-y-3">
+                <textarea
+                  className="textarea textarea-bordered w-full min-h-[100px] resize-none"
+                  placeholder="Enter your claim description..."
+                  value={claimData}
+                  onChange={(e) => setClaimData(e.target.value)}
+                  rows={4}
+                />
+                <button
+                  onClick={handleMakeClaim}
+                  disabled={!isConnected || isClaimPending || !claimData.trim()}
+                  className="btn btn-primary w-full"
+                >
+                  {isClaimPending ? 'Submitting...' : 'Submit Claim'}
+                </button>
+                {!isConnected && (
+                  <div className="text-sm text-base-content/60 text-center">
+                    Connect your wallet to make a claim
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
