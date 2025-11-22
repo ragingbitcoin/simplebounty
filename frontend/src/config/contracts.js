@@ -8,9 +8,9 @@ export const contracts = {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496', // Default from terminal output
     },
     11155111: {
-      SimpleBounty: '0x94c62D2c2017d7cD2aD110A6EEfb08f4A3D5f59C',
-      SimpleStorage: '0xC9c81A87d535Af9a534b752dA067EB0798c2ECB1',
-      TokenRendererV2: '0x70Dd1ab271D7b1fCD31ab58AAcc1B25Fac799BAC',
+      SimpleBounty: '0xF9D8469CC3B2C99db0D1223A09c6744345C78ad9',
+      SimpleStorage: '0x41b3a0EFe9d372CCa895469283658a9Ab30a8339',
+      TokenRendererV2: '0x49eB4e3C4aA6f756FAf0362A7bdE80A67679Bd78',
     },
     1: {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',

@@ -4,7 +4,7 @@ import { CID } from 'multiformats/cid';
 import { CarBlock } from "cartonne";
 
 const HOST_DOMAIN = 'new.simplepage.eth';
-const DATA_DOMAIN = 'data.simplebounty.eth';
+const DATA_DOMAIN = 'data0.simplebounty.eth';
 
 /**
  * Creates a CAR (Content Addressable aRchive) file containing text data.
@@ -23,7 +23,7 @@ export async function createCar(text) {
   // Create an empty CAR file with the root CID
   const car = emptyCar();
   car.roots = [cid];
-  car.blocks.push(new CarBlock(cid, new Uint8Array(block)));
+  car.blocks.put(new CarBlock(cid, new Uint8Array(block)));
   
   return car;
 }
@@ -70,7 +70,7 @@ export async function uploadTextData(textData, viemClient) {
   await dservice.init(viemClient);
 
   // Create CAR file with the text data
-  const { car } = await createCar(textData);
+  const car = await createCar(textData);
   
   // Upload the CAR file
   return uploadCarToDservice(dservice, car);
@@ -85,13 +85,26 @@ export async function uploadTextData(textData, viemClient) {
  * @returns {string} The digest bytes as a hex string (0x...), padded to 32 bytes if needed
  */
 export function cidToBytes32(cid) {
+  // Log the full cid bytes as hex
+  if (cid.bytes) {
+    const cidHex = '0x' + Array.from(cid.bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    console.log('[cidToBytes32] CID bytes (hex):', cidHex);
+  } else {
+    console.warn('[cidToBytes32] CID object does not have a .bytes property');
+  }
+
+  // Log the codec
+  console.log('[cidToBytes32] codec:', cid.code ? cid.code : cid.codec ? cid.codec : '(unknown)');
+
   const digest = cid.multihash.digest;
-  
+
   // Validate that we have a 32-byte digest (SHA-256)
   if (digest.length !== 32) {
     throw new Error(`Expected 32-byte digest, got ${digest.length} bytes. Hash code: ${cid.multihash.code}`);
   }
-  
+
   // Convert Uint8Array to hex string
   // viem expects hex strings for bytes32
   return '0x' + Array.from(digest)

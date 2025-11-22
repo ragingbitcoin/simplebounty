@@ -193,6 +193,7 @@ export function buildStateFromEvents(events) {
   for (const event of events) {
     switch (event.type) {
       case 'BountyCreated':
+        console.log(`[Indexer] Found new bounty: tokenId=${event.tokenId}, creator=${event.creator}, amount=${event.amount}, data=${event.data}, block=${event.blockNumber}`);
         bounties.set(event.tokenId, {
           tokenId: event.tokenId,
           data: event.data,
@@ -207,6 +208,7 @@ export function buildStateFromEvents(events) {
       case 'BountyToppedUp':
         const toppedUp = bounties.get(event.tokenId);
         if (toppedUp) {
+          console.log(`[Indexer] Bounty topped up: tokenId=${event.tokenId}, added=${event.amount}, new total=${(BigInt(toppedUp.amount) + BigInt(event.amount)).toString()}, block=${event.blockNumber}`);
           toppedUp.amount = (BigInt(toppedUp.amount) + BigInt(event.amount)).toString();
           toppedUp.lastUpdated = event.blockNumber;
         }
@@ -215,6 +217,7 @@ export function buildStateFromEvents(events) {
       case 'BountyUpdated':
         const updated = bounties.get(event.tokenId);
         if (updated) {
+          console.log(`[Indexer] Bounty updated: tokenId=${event.tokenId}, newData=${event.newData}, block=${event.blockNumber}`);
           updated.data = event.newData;
           updated.lastUpdated = event.blockNumber;
         }
@@ -236,6 +239,7 @@ export function buildStateFromEvents(events) {
         // Mark bounty as fulfilled
         const fulfilled = bounties.get(event.tokenId);
         if (fulfilled) {
+          console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winners=${event.winners.length}, block=${event.blockNumber}`);
           fulfilled.fulfilled = true;
           fulfilled.winners = event.winners;
           fulfilled.fulfilledAt = event.blockNumber;

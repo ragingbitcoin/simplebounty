@@ -4,12 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const CONTRACTS_JS_PATH = path.join(__dirname, '../../packages/common/src/contracts.js');
+const CONTRACTS_JS_PATH = path.join(__dirname, '../../frontend/src/config/contracts.js');
 const OUT_DIR = path.join(__dirname, '../out');
 const BROADCAST_DIR = path.join(__dirname, '../broadcast');
 
 // Contract names to track
-const CONTRACT_NAMES = ['SimplePage', 'SimplePageManager', 'TokenRenderer'];
+const CONTRACT_NAMES = ['SimpleBounty', 'SimpleStorage', 'TokenRendererV2'];
 const UNIVERSAL_RESOLVER_CONTRACTS = ['MockUniversalResolver', 'UniversalResolver'];
 
 function readJsonFile(filePath) {

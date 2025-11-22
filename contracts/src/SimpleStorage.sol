@@ -26,8 +26,8 @@ contract SimpleStorage is Ownable {
     /// @dev Creates a multihash with keccak-256 (0x1b), then wraps it in CIDv1 (0x01), then prepends IPFS protocol (0xe3)
     /// @param hash The bytes32 hash to store
     function storeSha256(bytes32 hash) external onlyOwner {
-        // Create ENS contenthash: 0xe3 (IPFS), 0x01 (CIDv1), 0x1b (keccak-256), 0x20 (32 bytes), then the hash
-        bytes memory contenthash = abi.encodePacked(hex"e3011b20", hash);
+        // Create ENS contenthash: 0xe301 (IPFS), 0x01 (CIDv1), 0x55 (raw) 0x12 (sha2-256), 0x20 (32 bytes), then the hash
+        bytes memory contenthash = abi.encodePacked(hex"e30101551220", hash);
         
         // Emit the ContenthashChanged event
         emit ContenthashChanged(ensNode, contenthash);

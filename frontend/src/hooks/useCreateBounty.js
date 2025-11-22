@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { useChainId } from './useChainId';
 import { contracts } from '../config/contracts';
@@ -77,9 +77,11 @@ export function useCreateBounty() {
   };
 
   // Reset creating state when transaction completes
-  if (isSuccess || error) {
-    setIsCreating(false);
-  }
+  useEffect(() => {
+    if (isSuccess || error) {
+      setIsCreating(false);
+    }
+  }, [isSuccess, error]);
 
   return {
     createBountyWithETH,
