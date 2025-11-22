@@ -32,7 +32,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./ReverseIndexable.sol";
 import "./ITokenRenderer.sol";
-import "./SimpleStorage.sol";
+import "./ISimpleStorage.sol";
 
 /// @title Simple Bounty Contract
 /// @dev Inherits from ERC1155 and ReverseIndexable. Each tokenId represents a bounty.
@@ -45,7 +45,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     uint256 public tokenIdCounter = 0;
     address public immutable beneficiary;
     ITokenRenderer public tokenRenderer;
-    SimpleStorage public immutable simpleStorage;
+    ISimpleStorage public immutable simpleStorage;
     
     // Fee is 0.05% = 5 / 10000
     uint256 private constant FEE_BPS = 5; // basis points (0.05%)
@@ -82,23 +82,22 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Initializes the SimpleBounty contract
     /// @param _beneficiary The address that will receive fees
     /// @param _tokenRenderer The TokenRendererV2 contract address for metadata rendering
-    /// @param storageLocation The ENS name for the SimpleStorage contract (e.g., "data.simplebounty.eth")
-    constructor(address _beneficiary, ITokenRenderer _tokenRenderer, string memory storageLocation) ERC1155("") {
+    /// @param _simpleStorage The SimpleStorage contract address
+    constructor(address _beneficiary, ITokenRenderer _tokenRenderer, ISimpleStorage _simpleStorage) ERC1155("") {
         require(_beneficiary != address(0), "Beneficiary cannot be zero address");
         require(address(_tokenRenderer) != address(0), "TokenRenderer cannot be zero address");
+        require(address(_simpleStorage) != address(0), "SimpleStorage cannot be zero address");
         beneficiary = _beneficiary;
         tokenRenderer = _tokenRenderer;
-        
-        // Deploy SimpleStorage (deployer will be the owner)
-        simpleStorage = new SimpleStorage(storageLocation);
+        simpleStorage = _simpleStorage;
     }
 
     /// @notice Creates a new bounty with ERC20 tokens
     /// @param data The bounty data/description
     /// @param tokenAddr The ERC20 token address (must not be address(0))
     /// @param amount The bounty amount in tokens
-    function new(bytes32 data, address tokenAddr, uint256 amount) external {
-        require(tokenAddr != address(0), "Use new() with ETH for native token");
+    function create(bytes32 data, address tokenAddr, uint256 amount) external {
+        require(tokenAddr != address(0), "Use create() with ETH for native token");
         require(amount > 0, "Amount must be greater than 0");
         
         IERC20 token = IERC20(tokenAddr);
@@ -109,7 +108,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
 
     /// @notice Creates a new bounty with ETH
     /// @param data The bounty data/description
-    function new(bytes32 data) external payable {
+    function create(bytes32 data) external payable {
         require(msg.value > 0, "Must send ETH");
         _createBounty(data, address(0), msg.value);
     }

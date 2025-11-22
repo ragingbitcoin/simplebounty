@@ -5,6 +5,8 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../src/SimpleBounty.sol";
 import "../src/TokenRendererV2.sol";
+import "../src/SimpleStorage.sol";
+import "../src/ISimpleStorage.sol";
 
 /*
 To deploy SimpleBounty contract:
@@ -42,21 +44,28 @@ contract SetupScript is Script {
         console.log("Beneficiary:", beneficiary);
         console.log("Storage Location:", storageLocation);
 
-        // Deploy TokenRendererV2 first
+        // Deploy SimpleStorage first
+        SimpleStorage simpleStorage = new SimpleStorage(storageLocation);
+        console.log("SimpleStorage deployed to:", address(simpleStorage));
+
+        // Deploy TokenRendererV2
         TokenRendererV2 renderer = new TokenRendererV2();
         console.log("TokenRendererV2 deployed to:", address(renderer));
 
-        // Deploy SimpleBounty with renderer and storage location
-        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), storageLocation);
+        // Deploy SimpleBounty with renderer and SimpleStorage
+        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), ISimpleStorage(address(simpleStorage)));
         console.log("SimpleBounty deployed to:", address(bounty));
-        console.log("SimpleStorage deployed to:", address(bounty.simpleStorage()));
+
+        // Transfer ownership of SimpleStorage to SimpleBounty
+        simpleStorage.transferOwnership(address(bounty));
+        console.log("SimpleStorage ownership transferred to SimpleBounty");
 
         vm.stopBroadcast();
 
         console.log("\n=== Deployment Summary ===");
+        console.log("SimpleStorage:", address(simpleStorage));
         console.log("TokenRendererV2:", address(renderer));
         console.log("SimpleBounty:", address(bounty));
-        console.log("SimpleStorage:", address(bounty.simpleStorage()));
         console.log("Beneficiary:", beneficiary);
     }
     
@@ -73,21 +82,28 @@ contract SetupScript is Script {
         // Use default storage location
         string memory storageLocation = "data.simplebounty.eth";
 
-        // Deploy TokenRendererV2 first
+        // Deploy SimpleStorage first
+        SimpleStorage simpleStorage = new SimpleStorage(storageLocation);
+        console.log("SimpleStorage deployed to:", address(simpleStorage));
+
+        // Deploy TokenRendererV2
         TokenRendererV2 renderer = new TokenRendererV2();
         console.log("TokenRendererV2 deployed to:", address(renderer));
 
-        // Deploy SimpleBounty with renderer and storage location
-        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), storageLocation);
+        // Deploy SimpleBounty with renderer and SimpleStorage
+        SimpleBounty bounty = new SimpleBounty(beneficiary, ITokenRenderer(renderer), ISimpleStorage(address(simpleStorage)));
         console.log("SimpleBounty deployed to:", address(bounty));
-        console.log("SimpleStorage deployed to:", address(bounty.simpleStorage()));
+
+        // Transfer ownership of SimpleStorage to SimpleBounty
+        simpleStorage.transferOwnership(address(bounty));
+        console.log("SimpleStorage ownership transferred to SimpleBounty");
 
         vm.stopBroadcast();
 
         console.log("\n=== Deployment Summary ===");
+        console.log("SimpleStorage:", address(simpleStorage));
         console.log("TokenRendererV2:", address(renderer));
         console.log("SimpleBounty:", address(bounty));
-        console.log("SimpleStorage:", address(bounty.simpleStorage()));
         console.log("Beneficiary:", beneficiary);
     }
 }

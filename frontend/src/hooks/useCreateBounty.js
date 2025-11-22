@@ -37,7 +37,7 @@ export function useCreateBounty() {
       await writeContract({
         address: contractAddress,
         abi: contracts.abis.SimpleBounty,
-        functionName: 'new',
+        functionName: 'create',
         args: [data],
         value: BigInt(value),
       });
@@ -66,7 +66,7 @@ export function useCreateBounty() {
       await writeContract({
         address: contractAddress,
         abi: contracts.abis.SimpleBounty,
-        functionName: 'new',
+        functionName: 'create',
         args: [data, tokenAddr, BigInt(amount)],
       });
     } catch (err) {

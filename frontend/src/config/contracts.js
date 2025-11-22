@@ -8,7 +8,9 @@ export const contracts = {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496', // Default from terminal output
     },
     11155111: {
-      SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',
+      SimpleBounty: '0x94c62D2c2017d7cD2aD110A6EEfb08f4A3D5f59C',
+      SimpleStorage: '0xC9c81A87d535Af9a534b752dA067EB0798c2ECB1',
+      TokenRendererV2: '0x70Dd1ab271D7b1fCD31ab58AAcc1B25Fac799BAC',
     },
     1: {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',
@@ -21,13 +23,13 @@ export const contracts = {
         "inputs": [
           { "name": "_beneficiary", "type": "address", "internalType": "address" },
           { "name": "_tokenRenderer", "type": "address", "internalType": "contract ITokenRenderer" },
-          { "name": "storageLocation", "type": "string", "internalType": "string" }
+          { "name": "_simpleStorage", "type": "address", "internalType": "contract ISimpleStorage" }
         ],
         "stateMutability": "nonpayable"
       },
       {
         "type": "function",
-        "name": "new",
+        "name": "create",
         "inputs": [
           { "name": "data", "type": "bytes32", "internalType": "bytes32" },
           { "name": "tokenAddr", "type": "address", "internalType": "address" },
@@ -38,7 +40,7 @@ export const contracts = {
       },
       {
         "type": "function",
-        "name": "new",
+        "name": "create",
         "inputs": [
           { "name": "data", "type": "bytes32", "internalType": "bytes32" }
         ],
