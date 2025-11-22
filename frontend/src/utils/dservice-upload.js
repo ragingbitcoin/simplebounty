@@ -6,6 +6,31 @@ import { CarBlock } from "cartonne";
 const HOST_DOMAIN = 'new.simplepage.eth';
 const DATA_DOMAIN = 'data0.simplebounty.eth';
 
+// Global singleton DService instance
+let dserviceInstance = null;
+let dserviceInitialized = false;
+
+/**
+ * Gets or creates the singleton DService instance.
+ * Initializes it if not already initialized.
+ * 
+ * @param {Object} viemClient - Viem public client for blockchain interactions
+ * @returns {Promise<DService>} The initialized DService instance
+ */
+async function getDService(viemClient) {
+  if (!dserviceInstance) {
+    dserviceInstance = new DService(HOST_DOMAIN);
+  }
+  
+  // Initialize if not already initialized and we have a client
+  if (viemClient && !dserviceInitialized) {
+    await dserviceInstance.init(viemClient);
+    dserviceInitialized = true;
+  }
+  
+  return dserviceInstance;
+}
+
 /**
  * Creates a CAR (Content Addressable aRchive) file containing text data.
  * The CAR file is used to store data in IPFS-compatible format.
@@ -66,8 +91,7 @@ export async function uploadCarToDservice(dservice, car) {
  * @returns {Promise<CID>} The CID of the uploaded content
  */
 export async function uploadTextData(textData, viemClient) {
-  const dservice = new DService(HOST_DOMAIN);
-  await dservice.init(viemClient);
+  const dservice = await getDService(viemClient);
 
   // Create CAR file with the text data
   const car = await createCar(textData);
@@ -110,5 +134,76 @@ export function cidToBytes32(cid) {
   return '0x' + Array.from(digest)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+/**
+ * Converts a bytes32 hash back to a CID.
+ * This reverses the process of cidToBytes32 by prepending the CID prefix.
+ * The hash is already the SHA-256 digest, so we just prepend: 0x01 (CIDv1) + 0x55 (raw codec) + 0x12 (sha2-256) + 0x20 (32 bytes)
+ * 
+ * @param {string} hashHex - The bytes32 hash as a hex string (0x...)
+ * @returns {CID} The reconstructed CID
+ */
+export function bytes32ToCid(hashHex) {
+  // Remove 0x prefix if present
+  const hash = hashHex.startsWith('0x') ? hashHex.slice(2) : hashHex;
+  
+  // Convert hex string to Uint8Array
+  const hashBytes = new Uint8Array(
+    hash.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+  );
+
+  if (hashBytes.length !== 32) {
+    throw new Error(`Expected 32-byte hash, got ${hashBytes.length} bytes`);
+  }
+
+  // Prepend CID prefix: 0x01 (CIDv1) + 0x55 (raw codec) + 0x12 (sha2-256) + 0x20 (32 bytes)
+  const cidBytes = new Uint8Array([0x01, 0x55, 0x12, 0x20, ...hashBytes]);
+  
+  // Parse the CID from bytes
+  const cid = CID.decode(cidBytes);
+  
+  return cid;
+}
+
+/**
+ * Fetches text data from dservice using the file API.
+ * The hash is converted to a CID, then the raw IPFS block is fetched and decoded as text.
+ * 
+ * @param {string} hashHex - The bytes32 hash as a hex string (0x...)
+ * @param {Object} viemClient - Viem public client for blockchain interactions
+ * @returns {Promise<string>} The text content
+ */
+export async function fetchTextData(hashHex, viemClient) {
+  if (!hashHex || hashHex === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    throw new Error('Invalid hash: empty or zero hash');
+  }
+
+  // Convert bytes32 hash to CID
+  const cid = bytes32ToCid(hashHex);
+  
+  // Get singleton dservice instance
+  const dservice = await getDService(viemClient);
+
+  // Fetch the raw IPFS block using GET /file?cid=...
+  const response = await dservice.fetch(`/file?cid=${encodeURIComponent(cid.toString())}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('File not found on dservice');
+    }
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  // Get the raw block data
+  const arrayBuffer = await response.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  
+  // Decode as UTF-8 text
+  const text = new TextDecoder().decode(uint8Array);
+  
+  return text;
 }
 

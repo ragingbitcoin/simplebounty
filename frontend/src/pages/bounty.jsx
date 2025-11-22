@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { useBounty } from '../hooks/useBounty';
 import { useMakeClaim } from '../hooks/useMakeClaim';
 import { useFulfillClaim } from '../hooks/useFulfillClaim';
@@ -8,11 +8,13 @@ import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TransactionStatus from '../components/TransactionStatus';
 import { formatEther } from 'viem';
+import { fetchTextData } from '../utils/dservice-upload';
 
 const Bounty = () => {
   const { tokenId } = useParams();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
+  const publicClient = usePublicClient();
   const { bounty, claims, isLoading, error } = useBounty(tokenId);
   const { makeClaim, hash: claimHash, isPending: isClaimPending, isSuccess: isClaimSuccess, error: claimError, reset: resetClaim } = useMakeClaim();
   const { fulfillClaim, hash: fulfillHash, isPending: isFulfillPending, isSuccess: isFulfillSuccess, error: fulfillError, reset: resetFulfill } = useFulfillClaim();
@@ -21,6 +23,10 @@ const Bounty = () => {
   const [winners, setWinners] = useState('');
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [showFulfillForm, setShowFulfillForm] = useState(false);
+  const [descriptionText, setDescriptionText] = useState(null);
+  const [descriptionLoading, setDescriptionLoading] = useState(false);
+  const [descriptionError, setDescriptionError] = useState(null);
+  const [claimTexts, setClaimTexts] = useState({});
 
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
@@ -29,23 +35,57 @@ const Bounty = () => {
     return `${amount} tokens`;
   };
 
-  const formatData = (data) => {
-    if (!data || data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-      return 'No description';
+  // Fetch description text from dservice
+  useEffect(() => {
+    if (!bounty?.data || !publicClient) return;
+    
+    const hash = bounty.data;
+    if (!hash || hash === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+      setDescriptionText('No description');
+      return;
     }
-    try {
-      const hex = data.slice(2);
-      let str = '';
-      for (let i = 0; i < hex.length; i += 2) {
-        const byte = parseInt(hex.substr(i, 2), 16);
-        if (byte === 0) break;
-        str += String.fromCharCode(byte);
+
+    setDescriptionLoading(true);
+    setDescriptionError(null);
+    
+    fetchTextData(hash, publicClient)
+      .then(text => {
+        setDescriptionText(text);
+        setDescriptionLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching description:', err);
+        setDescriptionError(err.message);
+        setDescriptionLoading(false);
+        // Fallback to showing hash
+        setDescriptionText(`Error loading description: ${err.message}`);
+      });
+  }, [bounty?.data, publicClient]);
+
+  // Fetch claim texts from dservice
+  useEffect(() => {
+    if (!claims || claims.length === 0 || !publicClient) return;
+
+    const fetchClaimTexts = async () => {
+      const texts = {};
+      for (const claim of claims) {
+        if (!claim.claimData || claim.claimData === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+          texts[claim.transactionHash] = 'No claim data';
+          continue;
+        }
+        try {
+          const text = await fetchTextData(claim.claimData, publicClient);
+          texts[claim.transactionHash] = text;
+        } catch (err) {
+          console.error('Error fetching claim data:', err);
+          texts[claim.transactionHash] = `Error loading claim: ${err.message}`;
+        }
       }
-      return str || 'No description';
-    } catch {
-      return data.slice(0, 10) + '...';
-    }
-  };
+      setClaimTexts(texts);
+    };
+
+    fetchClaimTexts();
+  }, [claims, publicClient]);
 
   const formatAddress = (addr) => {
     if (!addr) return '';
@@ -155,7 +195,16 @@ const Bounty = () => {
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Description</h3>
-                <p className="text-base-content/80">{formatData(bounty.data)}</p>
+                {descriptionLoading ? (
+                  <div className="flex items-center gap-2">
+                    <span className="loading loading-spinner loading-sm"></span>
+                    <span className="text-base-content/60">Loading description...</span>
+                  </div>
+                ) : descriptionError ? (
+                  <p className="text-base-content/80 text-error">{descriptionError}</p>
+                ) : (
+                  <p className="text-base-content/80 whitespace-pre-wrap">{descriptionText || 'Loading...'}</p>
+                )}
               </div>
 
               <div>
@@ -262,13 +311,13 @@ const Bounty = () => {
                 {claims.map((claim, idx) => (
                   <div key={idx} className="border-b border-base-300 pb-4 last:border-0">
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <p className="font-semibold">{formatAddress(claim.claimant)}</p>
-                        <p className="text-sm text-base-content/60 mt-1">
-                          {formatData(claim.claimData)}
+                        <p className="text-sm text-base-content/60 mt-1 whitespace-pre-wrap">
+                          {claimTexts[claim.transactionHash] || 'Loading claim data...'}
                         </p>
                       </div>
-                      <div className="text-sm text-base-content/60">
+                      <div className="text-sm text-base-content/60 ml-4">
                         Block: {claim.blockNumber}
                       </div>
                     </div>

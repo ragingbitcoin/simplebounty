@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
+import { usePublicClient } from 'wagmi';
 import { useBounties } from '../hooks/useBounties';
 import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatEther } from 'viem';
+import { fetchTextData } from '../utils/dservice-upload';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const publicClient = usePublicClient();
   const { bounties, isLoading, error } = useBounties();
+  const [descriptionTexts, setDescriptionTexts] = useState({});
 
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
@@ -16,25 +20,30 @@ const Landing = () => {
     return `${amount} tokens`;
   };
 
-  const formatData = (data) => {
-    // Convert bytes32 to readable string (remove null bytes)
-    if (!data || data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-      return 'No description';
-    }
-    try {
-      // Try to decode as UTF-8 string
-      const hex = data.slice(2);
-      let str = '';
-      for (let i = 0; i < hex.length; i += 2) {
-        const byte = parseInt(hex.substr(i, 2), 16);
-        if (byte === 0) break;
-        str += String.fromCharCode(byte);
+  // Fetch description texts from dservice
+  useEffect(() => {
+    if (!bounties || bounties.length === 0 || !publicClient) return;
+
+    const fetchDescriptions = async () => {
+      const texts = {};
+      for (const bounty of bounties) {
+        if (!bounty.data || bounty.data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+          texts[bounty.tokenId] = 'No description';
+          continue;
+        }
+        try {
+          const text = await fetchTextData(bounty.data, publicClient);
+          texts[bounty.tokenId] = text;
+        } catch (err) {
+          console.error(`Error fetching description for bounty ${bounty.tokenId}:`, err);
+          texts[bounty.tokenId] = 'Error loading description...';
+        }
       }
-      return str || 'No description';
-    } catch {
-      return data.slice(0, 10) + '...';
-    }
-  };
+      setDescriptionTexts(texts);
+    };
+
+    fetchDescriptions();
+  }, [bounties, publicClient]);
 
   if (isLoading) {
     return (
@@ -108,7 +117,7 @@ const Landing = () => {
                     )}
                   </h2>
                   <p className="text-base-content/70 line-clamp-2">
-                    {formatData(bounty.data)}
+                    {descriptionTexts[bounty.tokenId] || 'Loading description...'}
                   </p>
                   <div className="mt-4">
                     <div className="text-2xl font-bold text-primary">
