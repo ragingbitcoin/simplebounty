@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient } from 'wagmi';
 import { useChainId } from './useChainId';
 import { contracts } from '../config/contracts';
-import { indexAllEvents, buildStateFromEvents } from '../utils/indexer';
+import { indexAllEvents } from '../utils/indexer';
 
 /**
  * Hook to fetch all bounties using the ReverseIndexable pattern
@@ -27,22 +27,26 @@ export function useBounties() {
     setError(null);
 
     try {
-      const events = [];
+      let hasReceivedUpdate = false;
       
-      // Collect all events from the indexer
-      for await (const event of indexAllEvents(publicClient, contractAddress, chainId)) {
-        events.push(event);
+      // Update state incrementally as blocks are processed
+      for await (const state of indexAllEvents(publicClient, contractAddress, chainId)) {
+        // Update state after each block is processed
+        setBounties(state.bounties);
+        setClaims(state.claims);
+        
+        // Set loading to false after first update so UI can show bounties as they load
+        if (!hasReceivedUpdate) {
+          setIsLoading(false);
+          hasReceivedUpdate = true;
+        }
       }
-
-      // Build state from events
-      const state = buildStateFromEvents(events);
       
-      setBounties(state.bounties);
-      setClaims(state.claims);
+      // Ensure loading is false when iteration completes
+      setIsLoading(false);
     } catch (err) {
       console.error('Error fetching bounties:', err);
       setError(err);
-    } finally {
       setIsLoading(false);
     }
   }, [publicClient, contractAddress, chainId]);

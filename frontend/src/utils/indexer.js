@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbiItem, decodeEventLog } from 'viem';
+import { createPublicClient, http, parseAbiItem, decodeEventLog, getEventSelector } from 'viem';
 import { contracts } from '../config/contracts';
 
 /**
@@ -24,19 +24,35 @@ async function getBlockEvents(publicClient, contractAddress, blockNumber, fromBl
 
   try {
     const blockStart = performance.now();
-    const logs = await publicClient.getLogs({
-      address: contractAddress,
-      event: parseAbiItem('event BlockPointer(uint256 previousBlock)'),
-      fromBlock: BigInt(blockNumber),
-      toBlock: BigInt(blockNumber),
-    });
-
-    // Get all SimpleBounty events from this block
+    // Get all events from this block in a single call
     const allEvents = await publicClient.getLogs({
       address: contractAddress,
       fromBlock: BigInt(blockNumber),
       toBlock: BigInt(blockNumber),
     });
+    
+    // Find and decode the BlockPointer event from the results by matching the event selector (first topic)
+    const blockPointerSelector = getEventSelector(parseAbiItem('event BlockPointer(uint256 previousBlock)'));
+    const blockPointerAbi = parseAbiItem('event BlockPointer(uint256 previousBlock)');
+    const rawBlockPointerEvent = allEvents.find(event => {
+      // First topic is the event selector (keccak256 hash of event signature)
+      return event.topics && event.topics.length > 0 && event.topics[0] === blockPointerSelector;
+    });
+    
+    // Decode the BlockPointer event if found
+    let blockPointerEvent = null;
+    if (rawBlockPointerEvent) {
+      try {
+        blockPointerEvent = decodeEventLog({
+          abi: [blockPointerAbi],
+          data: rawBlockPointerEvent.data,
+          topics: rawBlockPointerEvent.topics,
+        });
+      } catch (error) {
+        console.error(`Error decoding BlockPointer event at block ${blockNumber}:`, error);
+      }
+    }
+    
     const blockTime = performance.now() - blockStart;
     if (blockTime > 100) {
       console.log(`[Indexer] Slow block fetch: block ${blockNumber} took ${blockTime.toFixed(2)}ms (${allEvents.length} events)`);
@@ -44,7 +60,7 @@ async function getBlockEvents(publicClient, contractAddress, blockNumber, fromBl
 
     return {
       blockNumber,
-      blockPointerEvent: logs[0] || null,
+      blockPointerEvent,
       allEvents,
     };
   } catch (error) {
@@ -260,11 +276,11 @@ export function buildStateFromEvents(events) {
 }
 
 /**
- * Main indexing function that yields structured event data
+ * Main indexing function that yields state updates after each block is processed
  * @param {Object} publicClient - Viem public client
  * @param {string} contractAddress - SimpleBounty contract address
  * @param {number} chainId - Chain ID
- * @yields {Object} Parsed event data
+ * @yields {Object} State update with bounties and claims after each block
  */
 export async function* indexAllEvents(publicClient, contractAddress, chainId) {
   const startTime = performance.now();
@@ -281,57 +297,149 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
     const currentBlockPointer = Number(blockPointer);
 
     if (currentBlockPointer === 0) {
-      // No activity yet
+      // No activity yet - yield empty state
       console.log(`[Indexer] No activity (blockPointer = 0), took ${(performance.now() - startTime).toFixed(2)}ms`);
+      yield {
+        bounties: [],
+        claims: {},
+      };
       return;
     }
 
     console.log(`[Indexer] Starting indexing from block ${currentBlockPointer}`);
+    
+    // Track state incrementally as we process blocks
+    const bounties = new Map();
+    const claims = new Map(); // tokenId -> array of claims
     let eventCount = 0;
-    let lastBlockNumber = null;
     let lastBlockTime = performance.now();
 
-    // Index all events recursively
-    for await (const { event, blockNumber } of indexContractEvents(
-      publicClient,
-      contractAddress,
-      currentBlockPointer
-    )) {
-      try {
-        // Only decode events that have topics (indexed events)
-        if (!event.topics || event.topics.length === 0) {
-          continue;
-        }
+    // Process blocks one at a time
+    const visitedBlocks = new Set();
+    let nextBlock = currentBlockPointer;
 
-        // Decode event using ABI
-        const decoded = decodeEventLog({
-          abi: contracts.abis.SimpleBounty,
-          data: event.data,
-          topics: event.topics,
-        });
-        
-        const parsed = parseEvent({
-          eventName: decoded.eventName,
-          args: decoded.args,
-          blockNumber: Number(blockNumber),
-          transactionHash: event.transactionHash,
-        });
-        eventCount++;
-        
-        // Log when we move to a new block
-        if (lastBlockNumber !== null && blockNumber !== lastBlockNumber) {
-          const blockTime = performance.now() - lastBlockTime;
-          console.log(`[Indexer] Processed block ${lastBlockNumber} in ${blockTime.toFixed(2)}ms`);
-          lastBlockTime = performance.now();
+    while (nextBlock > 0) {
+      // Avoid infinite loops
+      if (visitedBlocks.has(nextBlock)) {
+        console.warn(`Circular reference detected at block ${nextBlock}`);
+        break;
+      }
+      visitedBlocks.add(nextBlock);
+
+      const blockStart = performance.now();
+      const blockData = await getBlockEvents(publicClient, contractAddress, nextBlock, 0);
+      
+      // Process all events in this block
+      const blockEvents = [];
+      for (const event of blockData.allEvents) {
+        try {
+          // Only decode events that have topics (indexed events)
+          if (!event.topics || event.topics.length === 0) {
+            continue;
+          }
+
+          // Decode event using ABI
+          const decoded = decodeEventLog({
+            abi: contracts.abis.SimpleBounty,
+            data: event.data,
+            topics: event.topics,
+          });
+          
+          const parsed = parseEvent({
+            eventName: decoded.eventName,
+            args: decoded.args,
+            blockNumber: Number(blockData.blockNumber),
+            transactionHash: event.transactionHash,
+          });
+          
+          blockEvents.push(parsed);
+          eventCount++;
+        } catch (err) {
+          // Skip events that can't be decoded (might be from other contracts or unknown events)
+          // This is expected for events we don't care about
         }
-        lastBlockNumber = blockNumber;
-        
-        yield parsed;
-      } catch (err) {
-        // Skip events that can't be decoded (might be from other contracts or unknown events)
-        // This is expected for events we don't care about
+      }
+
+      // Apply events from this block to build state incrementally
+      for (const event of blockEvents) {
+        switch (event.type) {
+          case 'BountyCreated':
+            console.log(`[Indexer] Found new bounty: tokenId=${event.tokenId}, creator=${event.creator}, amount=${event.amount}, data=${event.data}, block=${event.blockNumber}`);
+            bounties.set(event.tokenId, {
+              tokenId: event.tokenId,
+              data: event.data,
+              tokenAddr: event.tokenAddr,
+              amount: event.amount,
+              creator: event.creator,
+              createdAt: event.blockNumber,
+              lastUpdated: event.blockNumber,
+            });
+            break;
+          
+          case 'BountyToppedUp':
+            const toppedUp = bounties.get(event.tokenId);
+            if (toppedUp) {
+              console.log(`[Indexer] Bounty topped up: tokenId=${event.tokenId}, added=${event.amount}, new total=${(BigInt(toppedUp.amount) + BigInt(event.amount)).toString()}, block=${event.blockNumber}`);
+              toppedUp.amount = (BigInt(toppedUp.amount) + BigInt(event.amount)).toString();
+              toppedUp.lastUpdated = event.blockNumber;
+            }
+            break;
+          
+          case 'BountyUpdated':
+            const updated = bounties.get(event.tokenId);
+            if (updated) {
+              console.log(`[Indexer] Bounty updated: tokenId=${event.tokenId}, newData=${event.newData}, block=${event.blockNumber}`);
+              updated.data = event.newData;
+              updated.lastUpdated = event.blockNumber;
+            }
+            break;
+          
+          case 'ClaimAttempted':
+            if (!claims.has(event.tokenId)) {
+              claims.set(event.tokenId, []);
+            }
+            claims.get(event.tokenId).push({
+              claimant: event.claimant,
+              claimData: event.claimData,
+              blockNumber: event.blockNumber,
+              transactionHash: event.transactionHash,
+            });
+            break;
+          
+          case 'ClaimFulfilled':
+            // Mark bounty as fulfilled
+            const fulfilled = bounties.get(event.tokenId);
+            if (fulfilled) {
+              console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winners=${event.winners.length}, block=${event.blockNumber}`);
+              fulfilled.fulfilled = true;
+              fulfilled.winners = event.winners;
+              fulfilled.fulfilledAt = event.blockNumber;
+            }
+            break;
+        }
+      }
+
+      // Yield state update after processing this block
+      const blockTime = performance.now() - blockStart;
+      if (blockTime > 100) {
+        console.log(`[Indexer] Slow block fetch: block ${nextBlock} took ${blockTime.toFixed(2)}ms (${blockEvents.length} events)`);
+      }
+      
+      yield {
+        bounties: Array.from(bounties.values()),
+        claims: Object.fromEntries(claims),
+      };
+
+      // Get next block from BlockPointer event
+      if (blockData.blockPointerEvent) {
+        const previousBlock = Number(blockData.blockPointerEvent.args.previousBlock);
+        nextBlock = previousBlock;
+      } else {
+        // No BlockPointer event means we've reached the end
+        break;
       }
     }
+    
     const totalTime = performance.now() - startTime;
     console.log(`[Indexer] Completed indexing: ${eventCount} events in ${totalTime.toFixed(2)}ms (avg ${(totalTime / Math.max(eventCount, 1)).toFixed(2)}ms/event)`);
   } catch (error) {
