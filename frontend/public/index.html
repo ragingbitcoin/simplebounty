@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="description" content="Triune - A meditation ceremony for three">
+    <title>Triune</title>
+    <link rel="icon" type="image/x-icon" href="/_assets/images/logo.svg">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Triune">
+    <meta property="og:description" content="A meditation ceremony for three">
+    <meta property="og:site_name" content="Triune">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Triune">
+    <meta name="twitter:description" content="A meditation ceremony for three">
+
+    <!-- CSS Preload Pattern -->
+    <% for (const cssFile of htmlWebpackPlugin.files.css || []) { %>
+    <link rel="preload" href="<%= cssFile %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="<%= cssFile %>"></noscript>
+    <% } %>
+
+    <!-- JavaScript files -->
+    <% for (const jsFile of htmlWebpackPlugin.files.js || []) { %>
+    <script src="<%= jsFile %>" defer></script>
+    <% } %>
+    
+    <style>
+      /* Prevent scrollbars and ensure mobile-only layout */
+      * {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+      *::-webkit-scrollbar {
+        display: none;  /* Chrome, Safari and Opera */
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        height: 100vh;
+        width: 100vw;
+        position: fixed;
+        touch-action: pan-y;
+      }
+      #root {
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
