@@ -4,9 +4,9 @@
   "description": "Censorship resistant bounties",
   "icons": [
     {
-      "src": "/_assets/images/logo.svg",
-      "sizes": "192x192",
-      "type": "image/x-icon"
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
   ]
 }

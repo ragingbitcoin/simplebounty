@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { usePublicClient } from 'wagmi';
 import { useBountiesContext } from '../contexts/BountiesContext';
-import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatEther } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
@@ -64,7 +63,18 @@ const Landing = () => {
     return (
       <div className="min-h-screen bg-base-100 p-8">
         <div className="max-w-6xl mx-auto">
-          <WalletInfo />
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold flex items-center gap-3">
+              <span className="text-5xl">💰</span>
+              Simple Bounty
+            </h1>
+            <button
+              onClick={() => navigate('/new')}
+              className="btn btn-primary"
+            >
+              Create Bounty
+            </button>
+          </div>
           <div className="flex justify-center items-center h-64">
             <LoadingSpinner />
           </div>
@@ -77,7 +87,18 @@ const Landing = () => {
     return (
       <div className="min-h-screen bg-base-100 p-8">
         <div className="max-w-6xl mx-auto">
-          <WalletInfo />
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold flex items-center gap-3">
+              <span className="text-5xl">💰</span>
+              Simple Bounty
+            </h1>
+            <button
+              onClick={() => navigate('/new')}
+              className="btn btn-primary"
+            >
+              Create Bounty
+            </button>
+          </div>
           <div className="alert alert-error">
             <span>Error loading bounties: {error.message}</span>
           </div>
@@ -89,10 +110,11 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-base-100 p-8">
       <div className="max-w-6xl mx-auto">
-        <WalletInfo />
-        
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Simple Bounty</h1>
+          <h1 className="text-4xl font-bold flex items-center gap-3">
+            <span className="text-5xl">💰</span>
+            Simple Bounty
+          </h1>
           <button
             onClick={() => navigate('/new')}
             className="btn btn-primary"
