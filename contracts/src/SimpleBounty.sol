@@ -32,6 +32,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./ReverseIndexable.sol";
 import "./ITokenRenderer.sol";
+import "./SimpleStorage.sol";
 
 /// @title Simple Bounty Contract
 /// @dev Inherits from ERC1155 and ReverseIndexable. Each tokenId represents a bounty.
@@ -44,6 +45,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     uint256 public tokenIdCounter = 0;
     address public immutable beneficiary;
     ITokenRenderer public tokenRenderer;
+    SimpleStorage public immutable simpleStorage;
     
     // Fee is 0.05% = 5 / 10000
     uint256 private constant FEE_BPS = 5; // basis points (0.05%)
@@ -80,11 +82,15 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Initializes the SimpleBounty contract
     /// @param _beneficiary The address that will receive fees
     /// @param _tokenRenderer The TokenRendererV2 contract address for metadata rendering
-    constructor(address _beneficiary, ITokenRenderer _tokenRenderer) ERC1155("") {
+    /// @param storageLocation The ENS name for the SimpleStorage contract (e.g., "data.simplebounty.eth")
+    constructor(address _beneficiary, ITokenRenderer _tokenRenderer, string memory storageLocation) ERC1155("") {
         require(_beneficiary != address(0), "Beneficiary cannot be zero address");
         require(address(_tokenRenderer) != address(0), "TokenRenderer cannot be zero address");
         beneficiary = _beneficiary;
         tokenRenderer = _tokenRenderer;
+        
+        // Deploy SimpleStorage (deployer will be the owner)
+        simpleStorage = new SimpleStorage(storageLocation);
     }
 
     /// @notice Creates a new bounty with ERC20 tokens
@@ -120,6 +126,9 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         bounty.data = data;
         bounty.tokenAddr = tokenAddr;
         bounty.amount = amount;
+        
+        // Store data in SimpleStorage to emit ContenthashChanged event
+        simpleStorage.storeSha256(data);
         
         _mint(msg.sender, tokenId, 1, "");
         touchIndex();
@@ -171,6 +180,10 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     function update(uint256 tokenId, bytes32 data) external tokenExists(tokenId) onlyOwner(tokenId) {
         Bounty storage bounty = _bounties[tokenId];
         bounty.data = data;
+        
+        // Store data in SimpleStorage to emit ContenthashChanged event
+        simpleStorage.storeSha256(data);
+        
         emit BountyUpdated(tokenId, data);
         touchIndex();
     }
@@ -179,6 +192,9 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @param tokenId The bounty token ID
     /// @param data The claim data
     function tryClaim(uint256 tokenId, bytes32 data) external tokenExists(tokenId) {
+        // Store data in SimpleStorage to emit ContenthashChanged event
+        simpleStorage.storeSha256(data);
+        
         touchIndex();
         emit ClaimAttempted(tokenId, msg.sender, data);
     }
