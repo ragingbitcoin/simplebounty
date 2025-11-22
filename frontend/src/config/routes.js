@@ -1,7 +1,7 @@
 // Centralized route configuration
 export const ROUTES = {
-  CONNECT: '/',
-  ADDRESS_INPUT: '/addresses',
-  DRAW: '/draw',
+  LANDING: '/',
+  BOUNTY: '/:tokenId',
+  NEW_BOUNTY: '/new',
   NOT_FOUND: '/404',
 }; 
