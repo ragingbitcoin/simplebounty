@@ -4,7 +4,7 @@ import { CID } from 'multiformats/cid';
 import { CarBlock } from "cartonne";
 
 const HOST_DOMAIN = 'new.simplepage.eth';
-const DATA_DOMAIN = 'data2.simplebounty.eth';
+const DATA_DOMAIN = 'data.simplebounty.eth';
 
 // Global singleton DService instance
 let dserviceInstance = null;

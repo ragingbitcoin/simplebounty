@@ -13,7 +13,9 @@ export const contracts = {
       TokenRendererV2: '0x562b29c806e75c8c198191C53D51B96B78917694',
     },
     1: {
-      SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',
+      SimpleBounty: '0x9137eaCc38021473395f57296f1BDA12bD0EbE0C',
+      SimpleStorage: '0xfDCEbA3Fd246464E8edCDf64C8702A857FA4FFa9',
+      TokenRendererV2: '0x97f77e924c1BCcb1aDb5F6c0b96FA50FD4Bd9F2D',
     },
   },
   abis: {
