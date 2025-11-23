@@ -193,7 +193,11 @@ const NewBounty = () => {
           alert('Please select a token or enter a valid token address');
           return;
         }
-        await createBountyWithERC20(formattedText, tokenAddress, amount);
+        // Get the correct decimals for the token
+        const tokenDecimalsValue = tokenDecimals !== undefined 
+          ? Number(tokenDecimals) 
+          : (selectedTokenInfo?.decimals || 18);
+        await createBountyWithERC20(formattedText, tokenAddress, amount, tokenDecimalsValue);
       }
     } catch (err) {
       console.error('Error creating bounty:', err);
