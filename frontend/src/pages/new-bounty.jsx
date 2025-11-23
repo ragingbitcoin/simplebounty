@@ -5,12 +5,14 @@ import { useCreateBounty } from '../hooks/useCreateBounty';
 import WalletInfo from '../components/WalletInfo';
 import TransactionStatus from '../components/TransactionStatus';
 import { parseEther } from 'viem';
+import { formatMarkdownWithFrontmatter } from '../utils/markdown';
 
 const NewBounty = () => {
   const navigate = useNavigate();
   const { isConnected } = useAccount();
   const { createBountyWithETH, createBountyWithERC20, hash, isPending, isConfirming, isSuccess, error, reset } = useCreateBounty();
 
+  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [useETH, setUseETH] = useState(true);
@@ -30,15 +32,18 @@ const NewBounty = () => {
     }
 
     try {
+      // Format text with markdown frontmatter
+      const formattedText = formatMarkdownWithFrontmatter(title, description);
+      
       if (useETH) {
         const value = parseEther(amount);
-        await createBountyWithETH(description, value);
+        await createBountyWithETH(formattedText, value);
       } else {
         if (!tokenAddr || !tokenAddr.startsWith('0x')) {
           alert('Please enter a valid token address');
           return;
         }
-        await createBountyWithERC20(description, tokenAddr, amount);
+        await createBountyWithERC20(formattedText, tokenAddr, amount);
       }
     } catch (err) {
       console.error('Error creating bounty:', err);
@@ -85,18 +90,32 @@ const NewBounty = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="label">
+                  <span className="label-text font-semibold">Title</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered w-full"
+                  placeholder="Enter a title for your bounty..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="label">
                   <span className="label-text font-semibold">Description</span>
                 </label>
                 <textarea
                   className="textarea textarea-bordered w-full"
-                  placeholder="Describe what you're looking for..."
+                  placeholder="Describe what you're looking for... (Markdown supported)"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
                   rows={4}
                 />
                 <label className="label">
-                  <span className="label-text-alt">This will be stored as bytes32 on-chain</span>
+                  <span className="label-text-alt">This will be stored as bytes32 on-chain. Markdown is supported.</span>
                 </label>
               </div>
 

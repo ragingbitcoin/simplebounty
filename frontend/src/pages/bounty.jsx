@@ -12,6 +12,7 @@ import Avatar from '../components/Avatar';
 import Username from '../components/Username';
 import { formatEther } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
+import { parseMarkdownWithFrontmatter, MarkdownRenderer } from '../utils/markdown';
 
 const Bounty = () => {
   const { tokenId } = useParams();
@@ -25,6 +26,7 @@ const Bounty = () => {
   const [claimData, setClaimData] = useState('');
   const [selectedClaim, setSelectedClaim] = useState(null);
   const [descriptionText, setDescriptionText] = useState(null);
+  const [descriptionTitle, setDescriptionTitle] = useState(null);
   const [descriptionLoading, setDescriptionLoading] = useState(false);
   const [descriptionError, setDescriptionError] = useState(null);
   const [claimTexts, setClaimTexts] = useState({});
@@ -56,7 +58,9 @@ const Bounty = () => {
     
     fetchTextData(hash, publicClient)
       .then(text => {
-        setDescriptionText(text);
+        const { title, body } = parseMarkdownWithFrontmatter(text);
+        setDescriptionTitle(title);
+        setDescriptionText(body);
         setDescriptionLoading(false);
       })
       .catch(err => {
@@ -65,6 +69,7 @@ const Bounty = () => {
         setDescriptionLoading(false);
         // Fallback to showing hash
         setDescriptionText(`Error loading description: ${err.message}`);
+        setDescriptionTitle(null);
       });
   }, [bounty?.data, publicClient]);
 
@@ -196,12 +201,17 @@ const Bounty = () => {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-semibold">
-              Bounty #{bounty.tokenId}
+              {descriptionTitle || `Bounty #${bounty.tokenId}`}
               {bounty.fulfilled && (
                 <span className="ml-3 badge badge-success">Fulfilled</span>
               )}
             </h1>
           </div>
+          {!descriptionTitle && (
+            <div className="text-base-content/60 mb-2">
+              Bounty #{bounty.tokenId}
+            </div>
+          )}
           <div className="flex items-center gap-4 text-sm text-base-content/60">
             <span className="font-semibold text-primary text-lg">
               {formatAmount(bounty.amount, bounty.tokenAddr)}
@@ -231,9 +241,7 @@ const Bounty = () => {
                 ) : descriptionError ? (
                   <p className="text-error">{descriptionError}</p>
                 ) : (
-                  <div className="text-base-content whitespace-pre-wrap">
-                    {descriptionText || 'Loading...'}
-                  </div>
+                  <MarkdownRenderer markdown={descriptionText || 'Loading...'} />
                 )}
               </div>
             </div>
@@ -296,11 +304,11 @@ const Bounty = () => {
                           </span>
                         </div>
                         <div className="prose prose-sm max-w-none">
-                          <div className="text-base-content whitespace-pre-wrap">
-                            {claimTexts[claim.transactionHash] || (
-                              <span className="text-base-content/60 italic">Loading claim data...</span>
-                            )}
-                          </div>
+                          {claimTexts[claim.transactionHash] ? (
+                            <MarkdownRenderer markdown={claimTexts[claim.transactionHash]} />
+                          ) : (
+                            <span className="text-base-content/60 italic">Loading claim data...</span>
+                          )}
                         </div>
                       </div>
                     </div>

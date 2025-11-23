@@ -5,12 +5,14 @@ import { useBountiesContext } from '../contexts/BountiesContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatEther } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
+import { parseMarkdownWithFrontmatter, MarkdownRenderer } from '../utils/markdown';
 
 const Landing = () => {
   const navigate = useNavigate();
   const publicClient = usePublicClient();
   const { bounties, isLoading, error } = useBountiesContext();
   const [descriptionTexts, setDescriptionTexts] = useState({});
+  const [descriptionTitles, setDescriptionTitles] = useState({});
 
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
@@ -30,7 +32,7 @@ const Landing = () => {
       // Fetch all descriptions in parallel instead of sequentially
       const fetchPromises = bounties.map(async (bounty) => {
         if (!bounty.data || bounty.data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-          return { tokenId: bounty.tokenId, text: 'No description' };
+          return { tokenId: bounty.tokenId, text: 'No description', title: null };
         }
         try {
           const fetchStart = performance.now();
@@ -39,17 +41,21 @@ const Landing = () => {
           if (fetchTime > 500) {
             console.log(`[Landing] Slow description fetch for bounty ${bounty.tokenId}: ${fetchTime.toFixed(2)}ms`);
           }
-          return { tokenId: bounty.tokenId, text };
+          const { title, body } = parseMarkdownWithFrontmatter(text);
+          return { tokenId: bounty.tokenId, text: body, title };
         } catch (err) {
           console.error(`Error fetching description for bounty ${bounty.tokenId}:`, err);
-          return { tokenId: bounty.tokenId, text: 'Error loading description...' };
+          return { tokenId: bounty.tokenId, text: 'Error loading description...', title: null };
         }
       });
 
       const results = await Promise.all(fetchPromises);
-      results.forEach(({ tokenId, text }) => {
+      const titles = {};
+      results.forEach(({ tokenId, text, title }) => {
         texts[tokenId] = text;
+        titles[tokenId] = title;
       });
+      setDescriptionTitles(titles);
       
       const totalTime = performance.now() - startTime;
       console.log(`[Landing] Fetched ${bounties.length} descriptions in ${totalTime.toFixed(2)}ms (parallel)`);
@@ -148,14 +154,23 @@ const Landing = () => {
               >
                 <div className="card-body">
                   <h2 className="card-title">
-                    Bounty #{bounty.tokenId}
+                    {descriptionTitles[bounty.tokenId] || `Bounty #${bounty.tokenId}`}
                     {bounty.fulfilled && (
                       <div className="badge badge-success">Fulfilled</div>
                     )}
                   </h2>
-                  <p className="text-base-content/70 line-clamp-2">
-                    {descriptionTexts[bounty.tokenId] || 'Loading description...'}
-                  </p>
+                  {descriptionTitles[bounty.tokenId] && (
+                    <div className="text-xs text-base-content/50 mb-2">
+                      Bounty #{bounty.tokenId}
+                    </div>
+                  )}
+                  <div className="text-base-content/70 line-clamp-2 prose prose-sm max-w-none">
+                    {descriptionTexts[bounty.tokenId] ? (
+                      <MarkdownRenderer markdown={descriptionTexts[bounty.tokenId]} />
+                    ) : (
+                      <span>Loading description...</span>
+                    )}
+                  </div>
                   <div className="mt-4">
                     <div className="text-2xl font-bold text-primary">
                       {formatAmount(bounty.amount, bounty.tokenAddr)}

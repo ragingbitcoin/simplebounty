@@ -19,8 +19,8 @@
   font-style: italic !important;
 }
 
-/* Content styling for #content and .editor-preview */
-#content, .editor-preview {
+/* Content styling for #content, .editor-preview, and .prose */
+#content, .editor-preview, .prose {
   h1 {
     font-size: 1.875rem;
     font-weight: 700;
@@ -237,22 +237,26 @@
 
 @media (prefers-color-scheme: dark) {
   #content code,
-  .editor-preview code {
+  .editor-preview code,
+  .prose code {
     background-color: #23272e;
     color: #f8f8f2;
   }
   #content pre,
-  .editor-preview pre {
+  .editor-preview pre,
+  .prose pre {
     background-color: #23272e;
     color: #f8f8f2;
   }
   #content th,
-  .editor-preview th {
+  .editor-preview th,
+  .prose th {
     background-color: #23272e;
     color: #f8f8f2;
   }
   #content td,
-  .editor-preview td {
+  .editor-preview td,
+  .prose td {
     background-color: #23272e;
     color: #f8f8f2;
   }
