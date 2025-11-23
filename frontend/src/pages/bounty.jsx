@@ -37,6 +37,16 @@ const Bounty = () => {
   const [blockTimestamps, setBlockTimestamps] = useState({});
   const { refresh: refreshBounties } = useBountiesContext();
 
+  // Helper function to check if bounty is fulfilled
+  const isBountyFulfilled = (bounty) => {
+    if (!bounty) return false;
+    // Check both the fulfilled flag (from indexer) and winningClaim (from contract)
+    const hasFulfilledFlag = bounty.fulfilled === true;
+    const hasWinningClaim = bounty.winningClaim && 
+      bounty.winningClaim !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+    return hasFulfilledFlag || hasWinningClaim;
+  };
+
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
       return `${formatEther(BigInt(amount))} ETH`;
@@ -181,6 +191,10 @@ const Bounty = () => {
 
 
   const handleMakeClaim = async () => {
+    if (isBountyFulfilled(bounty)) {
+      alert('This bounty has already been fulfilled');
+      return;
+    }
     if (!claimData.trim()) {
       alert('Please enter claim data');
       return;
@@ -193,18 +207,27 @@ const Bounty = () => {
   };
 
   const handleFulfillClaim = async () => {
+    if (isBountyFulfilled(bounty)) {
+      alert('This bounty has already been fulfilled');
+      return;
+    }
     if (!selectedClaim) {
       alert('Please select a claim to fulfill');
       return;
     }
-    // Get the claimant address for the selected claim
+    // Get the claim data for the selected claim
     const claim = claims.find(c => c.transactionHash === selectedClaim);
     if (!claim) {
       alert('Selected claim not found');
       return;
     }
+    if (!claim.claimData) {
+      alert('Selected claim has no claim data');
+      return;
+    }
     try {
-      await fulfillClaim(tokenId, claim.claimant);
+      // Pass the claim data hash as winningClaim
+      await fulfillClaim(tokenId, claim.claimant, claim.claimData);
       setSelectedClaim(null);
     } catch (err) {
       console.error('Error fulfilling claim:', err);
@@ -212,9 +235,18 @@ const Bounty = () => {
   };
 
   const toggleClaimSelection = (transactionHash) => {
+    // Prevent selection if bounty is fulfilled
+    if (isBountyFulfilled(bounty)) return;
     // Single select: if already selected, deselect; otherwise select this one
     setSelectedClaim(selectedClaim === transactionHash ? null : transactionHash);
   };
+
+  // Clear selected claim when bounty becomes fulfilled
+  useEffect(() => {
+    if (isBountyFulfilled(bounty) && selectedClaim) {
+      setSelectedClaim(null);
+    }
+  }, [bounty, selectedClaim]);
 
   const isOwner = bounty && isConnected && address && bounty.creator?.toLowerCase() === address.toLowerCase();
 
@@ -287,10 +319,10 @@ const Bounty = () => {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl sm:text-3xl font-semibold">
               {descriptionTitle || `Bounty #${bounty.tokenId}`}
-              {bounty.fulfilled && (
-                <span className="ml-2 sm:ml-3 badge badge-success text-xs sm:text-sm">Fulfilled</span>
-              )}
             </h1>
+            {isBountyFulfilled(bounty) && (
+              <span className="badge badge-success text-xs sm:text-sm">Fulfilled</span>
+            )}
           </div>
           {!descriptionTitle && (
             <div className="text-base-content/60 mb-2 text-sm sm:text-base">
@@ -301,8 +333,8 @@ const Bounty = () => {
             <span className="font-semibold text-primary text-base sm:text-lg">
               {formatAmount(bounty.amount, bounty.tokenAddr)}
             </span>
-            {bounty.fulfilled && bounty.winner && (
-              <span>• Winner selected</span>
+            {isBountyFulfilled(bounty) && bounty.winner && (
+              <span>• Paid out</span>
             )}
             <span>• {claims.length} claim{claims.length !== 1 ? 's' : ''}</span>
           </div>
@@ -346,13 +378,13 @@ const Bounty = () => {
                 <h2 className="text-lg sm:text-xl font-semibold">
                   {claims.length} {claims.length === 1 ? 'Claim' : 'Claims'}
                 </h2>
-                {isOwner && !bounty.fulfilled && claims.length > 0 && !selectedClaim && (
+                {isOwner && !isBountyFulfilled(bounty) && claims.length > 0 && !selectedClaim && (
                   <span className="text-xs sm:text-sm text-base-content/60">
                     Select a claim below to fulfill it
                   </span>
                 )}
               </div>
-              {isOwner && !bounty.fulfilled && selectedClaim && (
+              {isOwner && !isBountyFulfilled(bounty) && selectedClaim && (
                 <button
                   onClick={handleFulfillClaim}
                   disabled={isFulfillPending}
@@ -365,20 +397,27 @@ const Bounty = () => {
             <div className="border border-base-300 rounded-lg bg-base-100 divide-y divide-base-300">
               {claims.map((claim, idx) => {
                 const isSelected = selectedClaim === claim.transactionHash;
+                const fulfilled = isBountyFulfilled(bounty);
+                // Check if this claim is the winner by comparing claimData with winningClaim
+                const isWinner = fulfilled && 
+                  bounty.winningClaim && 
+                  bounty.winningClaim.toLowerCase() === claim.claimData?.toLowerCase();
                 return (
                   <div
                     key={idx}
                     className={`${
-                      isOwner && !bounty.fulfilled
+                      isWinner
+                        ? 'bg-success/10 border-l-4 border-l-success'
+                        : isOwner && !fulfilled
                         ? isSelected
                           ? 'bg-primary/5 border-l-4 border-l-primary'
                           : 'hover:bg-base-200/50 cursor-pointer'
                         : ''
                     }`}
-                    onClick={() => isOwner && !bounty.fulfilled && toggleClaimSelection(claim.transactionHash)}
+                    onClick={() => !fulfilled && isOwner && toggleClaimSelection(claim.transactionHash)}
                   >
                     <div className="flex gap-2 sm:gap-4 p-3 sm:p-4">
-                      {isOwner && !bounty.fulfilled && (
+                      {isOwner && !fulfilled && (
                         <div className="pt-1">
                           <input
                             type="radio"
@@ -393,9 +432,15 @@ const Bounty = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2">
                           <Username address={claim.claimant} />
-                          <span className="text-xs sm:text-sm text-base-content/60">
-                            commented
-                          </span>
+                          {isWinner ? (
+                            <span className="text-xs sm:text-sm text-success font-semibold">
+                              🏆 Winner
+                            </span>
+                          ) : (
+                            <span className="text-xs sm:text-sm text-base-content/60">
+                              commented
+                            </span>
+                          )}
                           {claim.blockNumber && blockTimestamps[claim.blockNumber] && (
                             <span className="text-xs sm:text-sm text-base-content/40" title={formatTimestamp(blockTimestamps[claim.blockNumber])}>
                               • {formatRelativeTime(blockTimestamps[claim.blockNumber])}
@@ -424,14 +469,14 @@ const Bounty = () => {
         )}
 
         {/* Make a Claim Form - GitHub style */}
-        {!bounty.fulfilled && (
+        {!isBountyFulfilled(bounty) && (
           <div className="border border-base-300 rounded-lg bg-base-100 mt-4 sm:mt-6">
             <div className="p-3 sm:p-4">
               <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Add a claim</h3>
               <div className="space-y-3">
                 <textarea
                   className="textarea textarea-bordered w-full min-h-[120px] resize-none"
-                  placeholder="Leave a comment..."
+                  placeholder="Explain how you completed the bounty..."
                   value={claimData}
                   onChange={(e) => setClaimData(e.target.value)}
                   rows={6}
@@ -442,23 +487,13 @@ const Bounty = () => {
                   </div>
                   <button
                     onClick={handleMakeClaim}
-                    disabled={!isConnected || isClaimPending || !claimData.trim()}
+                    disabled={!isConnected || isClaimPending || !claimData.trim() || isBountyFulfilled(bounty)}
                     className="btn btn-primary"
                   >
-                    {isClaimPending ? 'Submitting...' : 'Comment'}
+                    {isClaimPending ? 'Submitting...' : 'Make Claim'}
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Winner section */}
-        {bounty.fulfilled && bounty.winner && (
-          <div className="border border-success/30 rounded-lg bg-success/5 mt-4 sm:mt-6 p-3 sm:p-4">
-            <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 text-success">Winner</h3>
-            <div className="space-y-2">
-              <AddressDisplay address={bounty.winner} size="md" />
             </div>
           </div>
         )}

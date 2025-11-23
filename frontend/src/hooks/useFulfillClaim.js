@@ -14,7 +14,7 @@ export function useFulfillClaim() {
     hash,
   });
 
-  const fulfillClaim = async (tokenId, winner) => {
+  const fulfillClaim = async (tokenId, winner, winningClaim) => {
     if (!contractAddress) {
       throw new Error('Contract address not configured');
     }
@@ -23,11 +23,15 @@ export function useFulfillClaim() {
       throw new Error('Must provide a winner address');
     }
 
+    if (!winningClaim || typeof winningClaim !== 'string') {
+      throw new Error('Must provide a winningClaim (bytes32 hash)');
+    }
+
     await writeContract({
       address: contractAddress,
       abi: contracts.abis.SimpleBounty,
       functionName: 'fulfillClaim',
-      args: [BigInt(tokenId), winner],
+      args: [BigInt(tokenId), winner, winningClaim],
     });
   };
 

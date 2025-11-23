@@ -37,7 +37,7 @@ contract TokenRendererV2 is ITokenRenderer {
     /// @param tokenAddr The token address (address(0) for ETH)
     /// @param amount The bounty amount
     /// @return The base64-encoded JSON metadata URI
-    function renderBounty(uint256 tokenId, bytes32 data, address tokenAddr, uint256 amount) public pure returns (string memory) {
+    function renderBounty(uint256 tokenId, bytes32 data, address tokenAddr, uint256 amount, bytes32 winningClaim) public pure returns (string memory) {
         
         // Determine token display info
         string memory tokenDisplay;
@@ -176,7 +176,7 @@ contract TokenRendererV2 is ITokenRenderer {
         );
         
         // Add status trait
-        string memory status = amount > 0 ? "Active" : "Claimed";
+        string memory status = winningClaim != bytes32(0) ? "Claimed" : "Active";
         attributes = string(
             abi.encodePacked(
                 attributes,

@@ -215,15 +215,31 @@ export function buildStateFromEvents(events) {
     switch (event.type) {
       case 'BountyCreated':
         console.log(`[Indexer] Found new bounty: tokenId=${event.tokenId}, creator=${event.creator}, amount=${event.amount}, data=${event.data}, block=${event.blockNumber}`);
-        bounties.set(event.tokenId, {
-          tokenId: event.tokenId,
-          data: event.data,
-          tokenAddr: event.tokenAddr,
-          amount: event.amount,
-          creator: event.creator,
-          createdAt: event.blockNumber,
-          lastUpdated: event.blockNumber,
-        });
+        // Check if bounty already exists (from a newer block in reverse indexing)
+        const existingBounty = bounties.get(event.tokenId);
+        if (existingBounty) {
+          // Preserve newer state (fulfilled, winner, etc.) and only update creation data
+          existingBounty.data = event.data;
+          existingBounty.tokenAddr = event.tokenAddr;
+          existingBounty.amount = event.amount;
+          existingBounty.creator = event.creator;
+          existingBounty.createdAt = event.blockNumber;
+          // Don't overwrite lastUpdated if it's from a newer block
+          if (!existingBounty.lastUpdated || event.blockNumber > existingBounty.lastUpdated) {
+            existingBounty.lastUpdated = event.blockNumber;
+          }
+        } else {
+          // Create new bounty entry
+          bounties.set(event.tokenId, {
+            tokenId: event.tokenId,
+            data: event.data,
+            tokenAddr: event.tokenAddr,
+            amount: event.amount,
+            creator: event.creator,
+            createdAt: event.blockNumber,
+            lastUpdated: event.blockNumber,
+          });
+        }
         break;
       
       case 'BountyToppedUp':
@@ -239,8 +255,11 @@ export function buildStateFromEvents(events) {
         const updated = bounties.get(event.tokenId);
         if (updated) {
           console.log(`[Indexer] Bounty updated: tokenId=${event.tokenId}, newData=${event.newData}, block=${event.blockNumber}`);
-          updated.data = event.newData;
-          updated.lastUpdated = event.blockNumber;
+          // Only update data if this is a newer event (don't overwrite newer data with older data)
+          if (!updated.lastUpdated || event.blockNumber > updated.lastUpdated) {
+            updated.data = event.newData;
+            updated.lastUpdated = event.blockNumber;
+          }
         }
         break;
       
@@ -264,6 +283,9 @@ export function buildStateFromEvents(events) {
           fulfilled.fulfilled = true;
           fulfilled.winner = event.winner;
           fulfilled.fulfilledAt = event.blockNumber;
+          // Note: winningClaim will be read from contract in indexAllEvents function
+        } else {
+          console.warn(`[Indexer] ClaimFulfilled event for tokenId ${event.tokenId} but bounty not found in Map (buildStateFromEvents)`);
         }
         break;
     }
@@ -365,15 +387,31 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
         switch (event.type) {
           case 'BountyCreated':
             console.log(`[Indexer] Found new bounty: tokenId=${event.tokenId}, creator=${event.creator}, amount=${event.amount}, data=${event.data}, block=${event.blockNumber}`);
-            bounties.set(event.tokenId, {
-              tokenId: event.tokenId,
-              data: event.data,
-              tokenAddr: event.tokenAddr,
-              amount: event.amount,
-              creator: event.creator,
-              createdAt: event.blockNumber,
-              lastUpdated: event.blockNumber,
-            });
+            // Check if bounty already exists (from a newer block in reverse indexing)
+            const existingBounty = bounties.get(event.tokenId);
+            if (existingBounty) {
+              // Preserve newer state (fulfilled, winner, etc.) and only update creation data
+              existingBounty.data = event.data;
+              existingBounty.tokenAddr = event.tokenAddr;
+              existingBounty.amount = event.amount;
+              existingBounty.creator = event.creator;
+              existingBounty.createdAt = event.blockNumber;
+              // Don't overwrite lastUpdated if it's from a newer block
+              if (!existingBounty.lastUpdated || event.blockNumber > existingBounty.lastUpdated) {
+                existingBounty.lastUpdated = event.blockNumber;
+              }
+            } else {
+              // Create new bounty entry
+              bounties.set(event.tokenId, {
+                tokenId: event.tokenId,
+                data: event.data,
+                tokenAddr: event.tokenAddr,
+                amount: event.amount,
+                creator: event.creator,
+                createdAt: event.blockNumber,
+                lastUpdated: event.blockNumber,
+              });
+            }
             break;
           
           case 'BountyToppedUp':
@@ -389,8 +427,11 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
             const updated = bounties.get(event.tokenId);
             if (updated) {
               console.log(`[Indexer] Bounty updated: tokenId=${event.tokenId}, newData=${event.newData}, block=${event.blockNumber}`);
-              updated.data = event.newData;
-              updated.lastUpdated = event.blockNumber;
+              // Only update data if this is a newer event (don't overwrite newer data with older data)
+              if (!updated.lastUpdated || event.blockNumber > updated.lastUpdated) {
+                updated.data = event.newData;
+                updated.lastUpdated = event.blockNumber;
+              }
             }
             break;
           
@@ -408,12 +449,59 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
           
           case 'ClaimFulfilled':
             // Mark bounty as fulfilled
-            const fulfilled = bounties.get(event.tokenId);
+            let fulfilled = bounties.get(event.tokenId);
+            if (!fulfilled) {
+              // Bounty doesn't exist in Map yet - read from contract to create it
+              console.warn(`[Indexer] ClaimFulfilled for tokenId ${event.tokenId} but bounty not in Map. Reading from contract...`);
+              try {
+                const bountyData = await publicClient.readContract({
+                  address: contractAddress,
+                  abi: contracts.abis.SimpleBounty,
+                  functionName: 'getBounty',
+                  args: [BigInt(event.tokenId)],
+                });
+                if (bountyData) {
+                  // Create bounty entry from contract data
+                  fulfilled = {
+                    tokenId: event.tokenId,
+                    data: bountyData[0],
+                    tokenAddr: bountyData[1],
+                    amount: bountyData[2].toString(),
+                    winningClaim: bountyData[3],
+                    fulfilled: true,
+                    winner: event.winner,
+                    fulfilledAt: event.blockNumber,
+                    // We don't have creator or createdAt from getBounty, so leave them undefined
+                  };
+                  bounties.set(event.tokenId, fulfilled);
+                  console.log(`[Indexer] Created bounty ${event.tokenId} from contract data (fulfilled)`);
+                }
+              } catch (err) {
+                console.error(`[Indexer] Could not read bounty ${event.tokenId} from contract:`, err);
+              }
+            }
+            
             if (fulfilled) {
               console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winner=${event.winner}, block=${event.blockNumber}`);
               fulfilled.fulfilled = true;
               fulfilled.winner = event.winner;
               fulfilled.fulfilledAt = event.blockNumber;
+              // Read winningClaim from contract if not already set
+              if (!fulfilled.winningClaim) {
+                try {
+                  const bountyData = await publicClient.readContract({
+                    address: contractAddress,
+                    abi: contracts.abis.SimpleBounty,
+                    functionName: 'getBounty',
+                    args: [BigInt(event.tokenId)],
+                  });
+                  if (bountyData && bountyData[3]) {
+                    fulfilled.winningClaim = bountyData[3];
+                  }
+                } catch (err) {
+                  console.warn(`[Indexer] Could not read winningClaim for bounty ${event.tokenId}:`, err);
+                }
+              }
             }
             break;
         }
@@ -440,8 +528,41 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
       }
     }
     
+    // Read winningClaim for all fulfilled bounties that don't have it yet
+    const fulfilledBounties = Array.from(bounties.values()).filter(b => b.fulfilled && !b.winningClaim);
+    if (fulfilledBounties.length > 0) {
+      console.log(`[Indexer] Reading winningClaim for ${fulfilledBounties.length} fulfilled bounties`);
+      const readPromises = fulfilledBounties.map(async (bounty) => {
+        try {
+          const bountyData = await publicClient.readContract({
+            address: contractAddress,
+            abi: contracts.abis.SimpleBounty,
+            functionName: 'getBounty',
+            args: [BigInt(bounty.tokenId)],
+          });
+          if (bountyData && bountyData[3]) {
+            bounty.winningClaim = bountyData[3];
+          }
+        } catch (err) {
+          console.warn(`[Indexer] Could not read winningClaim for bounty ${bounty.tokenId}:`, err);
+        }
+      });
+      await Promise.all(readPromises);
+    }
+    
+    // Final yield with all updates (including winningClaim)
+    const finalBounties = Array.from(bounties.values());
+    const fulfilledCount = finalBounties.filter(b => b.fulfilled).length;
+    console.log(`[Indexer] Final state: ${finalBounties.length} bounties, ${fulfilledCount} fulfilled`);
+    
     const totalTime = performance.now() - startTime;
     console.log(`[Indexer] Completed indexing: ${eventCount} events in ${totalTime.toFixed(2)}ms (avg ${(totalTime / Math.max(eventCount, 1)).toFixed(2)}ms/event)`);
+    
+    // Yield final state one more time with all winningClaim values
+    yield {
+      bounties: finalBounties,
+      claims: Object.fromEntries(claims),
+    };
   } catch (error) {
     console.error('Error indexing contract events:', error);
     throw error;
@@ -517,15 +638,21 @@ export async function getNewEventsInRange(publicClient, contractAddress, fromBlo
             const toppedUp = bounties.get(parsed.tokenId);
             if (toppedUp) {
               toppedUp.amount = (BigInt(toppedUp.amount) + BigInt(parsed.amount)).toString();
-              toppedUp.lastUpdated = parsed.blockNumber;
+              // Only update lastUpdated if this is a newer event
+              if (!toppedUp.lastUpdated || parsed.blockNumber > toppedUp.lastUpdated) {
+                toppedUp.lastUpdated = parsed.blockNumber;
+              }
             }
             break;
 
           case 'BountyUpdated':
             const updated = bounties.get(parsed.tokenId);
             if (updated) {
-              updated.data = parsed.newData;
-              updated.lastUpdated = parsed.blockNumber;
+              // Only update data if this is a newer event (don't overwrite newer data with older data)
+              if (!updated.lastUpdated || parsed.blockNumber > updated.lastUpdated) {
+                updated.data = parsed.newData;
+                updated.lastUpdated = parsed.blockNumber;
+              }
             }
             break;
 
@@ -547,17 +674,86 @@ export async function getNewEventsInRange(publicClient, contractAddress, fromBlo
             break;
 
           case 'ClaimFulfilled':
-            const fulfilled = bounties.get(parsed.tokenId);
+            let fulfilled = bounties.get(parsed.tokenId);
+            if (!fulfilled) {
+              // Bounty doesn't exist in Map yet - read from contract to create it
+              console.warn(`[Indexer] ClaimFulfilled for tokenId ${parsed.tokenId} but bounty not in Map (getNewEventsInRange). Reading from contract...`);
+              try {
+                const bountyData = await publicClient.readContract({
+                  address: contractAddress,
+                  abi: contracts.abis.SimpleBounty,
+                  functionName: 'getBounty',
+                  args: [BigInt(parsed.tokenId)],
+                });
+                if (bountyData) {
+                  // Create bounty entry from contract data
+                  fulfilled = {
+                    tokenId: parsed.tokenId,
+                    data: bountyData[0],
+                    tokenAddr: bountyData[1],
+                    amount: bountyData[2].toString(),
+                    winningClaim: bountyData[3],
+                    fulfilled: true,
+                    winner: parsed.winner,
+                    fulfilledAt: parsed.blockNumber,
+                    // We don't have creator or createdAt from getBounty, so leave them undefined
+                  };
+                  bounties.set(parsed.tokenId, fulfilled);
+                  console.log(`[Indexer] Created bounty ${parsed.tokenId} from contract data (fulfilled)`);
+                }
+              } catch (err) {
+                console.error(`[Indexer] Could not read bounty ${parsed.tokenId} from contract:`, err);
+              }
+            }
+            
             if (fulfilled) {
               fulfilled.fulfilled = true;
               fulfilled.winner = parsed.winner;
               fulfilled.fulfilledAt = parsed.blockNumber;
+              // Read winningClaim from contract if not already set
+              if (!fulfilled.winningClaim) {
+                try {
+                  const bountyData = await publicClient.readContract({
+                    address: contractAddress,
+                    abi: contracts.abis.SimpleBounty,
+                    functionName: 'getBounty',
+                    args: [BigInt(parsed.tokenId)],
+                  });
+                  if (bountyData && bountyData[3]) {
+                    fulfilled.winningClaim = bountyData[3];
+                  }
+                } catch (err) {
+                  console.warn(`[Indexer] Could not read winningClaim for bounty ${parsed.tokenId}:`, err);
+                }
+              }
             }
             break;
         }
       } catch (err) {
         // Skip events that can't be decoded
       }
+    }
+
+    // Read winningClaim for all fulfilled bounties that don't have it yet
+    const fulfilledBounties = Array.from(bounties.values()).filter(b => b.fulfilled && !b.winningClaim);
+    if (fulfilledBounties.length > 0) {
+      console.log(`[Indexer] Reading winningClaim for ${fulfilledBounties.length} fulfilled bounties in range`);
+      const readPromises = fulfilledBounties.map(async (bounty) => {
+        try {
+          const bountyData = await publicClient.readContract({
+            address: contractAddress,
+            abi: contracts.abis.SimpleBounty,
+            functionName: 'getBounty',
+            args: [BigInt(bounty.tokenId)],
+          });
+          if (bountyData && bountyData[3]) {
+            bounty.winningClaim = bountyData[3];
+          }
+        } catch (err) {
+          console.warn(`[Indexer] Could not read winningClaim for bounty ${bounty.tokenId}:`, err);
+        }
+      });
+      await Promise.all(readPromises);
     }
 
     return {

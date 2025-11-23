@@ -8,9 +8,9 @@ export const contracts = {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496', // Default from terminal output
     },
     11155111: {
-      SimpleBounty: '0x092DcE3916271412b5e69727175187165A3c8ceE',
-      SimpleStorage: '0xADe141cC757b319D014572224cc8F6ED838F7337',
-      TokenRendererV2: '0x8258F0e2e61f767068A481FEF2dFA0A6Dd5526A5',
+      SimpleBounty: '0x5e933f9045BC945F4d3f60FF9Cc9c9062e26ADbe',
+      SimpleStorage: '0x069eE712c7B45284F3f84BF845fc290EBCaB8E78',
+      TokenRendererV2: '0x562b29c806e75c8c198191C53D51B96B78917694',
     },
     1: {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',
@@ -92,7 +92,8 @@ export const contracts = {
         "name": "fulfillClaim",
         "inputs": [
           { "name": "tokenId", "type": "uint256", "internalType": "uint256" },
-          { "name": "winner", "type": "address", "internalType": "address" }
+          { "name": "winner", "type": "address", "internalType": "address" },
+          { "name": "winningClaim", "type": "bytes32", "internalType": "bytes32" }
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
@@ -106,7 +107,8 @@ export const contracts = {
         "outputs": [
           { "name": "data", "type": "bytes32", "internalType": "bytes32" },
           { "name": "tokenAddr", "type": "address", "internalType": "address" },
-          { "name": "amount", "type": "uint256", "internalType": "uint256" }
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "winningClaim", "type": "bytes32", "internalType": "bytes32" }
         ],
         "stateMutability": "view"
       },

@@ -1,18 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only
-  ▄▄▄▄▄▄▄▄▄▄  ▄▄  ▄                  ▄█▄                      ▄  ▄▄  ▄▄▄▄▄▄▄▄▄▄
- █▄▓▄                               ██▀██                                   ▄▓▄█
- █                                ▄█▀   ▀█    ▄█▄                              █
- █                               ▄█       █  ██▀██                             █
- █                              ██   ▄█▄   ▄█▀   ▀█▄                           █
- █                            ▄█▀   ██▀██  █ ▄     █▄                          █
- █                           ▄█   ▄█▀   ▀█▄   █     ██                         █
- █                          ██   ▄█     ▄ █▄   ██    ▀█▄                       █
- █                         █▀   ▀▀    ▄█   ▀▀   ▀█     █▄                      █
- █                         ▀▀▀▀▀▀▀▀▀ ██  ▀▀▀▀▀▀▀▀▀      ██                     █
- █                           ▄█     █▀        █▄         ▀█                    █
- █                          ██      ▀▀▀▀▀▀▀▀▀  ██ ▀▀▀▀▀▀▀▀▀                    █
- █                         █▀                   ▀█
- █▄▓▄▄                     ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀                         ▄▄▓▄█
+  ▄▄▄▄▄▄▄▄▄▄  ▄▄  ▄                                           ▄  ▄▄  ▄▄▄▄▄▄▄▄▄▄
+ █▄▓▄                                                                       ▄▓▄█
+ █         ▒██████  █▓ ▓██▄ ▄██▄ ██▓███  ██▓   ███████ ██████ ██████▒          █
+ █         ██▒      ██ ▒██▀█▀ █▓██░  ██▒██▒    ▓█   ▀  ██  ██ ██  ██           █
+ █          ██████  ██ ▓██ █  █▓██░ ██▓▒██░    ▒███    ██████ ██ ▄▄▒           █
+ █              ██▒ ██ ▓██ █  █▒██▄█▓▒ ▒██░    ▒▓█  ▄  ██     ██  ██           █
+ █         ███████▒ ██▒▒██ █  █▒██▒ ░  ░██████▒▓█████▒ ██     ██████           █
+ █         ░ ▒░▒░▒░ ▓ ░ ▒░ ░  ▒▒▓▒░ ░  ░▒ ▒░▓  ░░ ▒░ ░ ░░▒    ░░▒▒▓▒           █
+ █           ░ ▒ ▒░ ▒ ░ ░░    ▒░▒ ░     ░ ░ ▒  ░░ ░  ░ ░   ░  ░ ░▒░            █
+ █         ░ ░ ░ ▒ ▒    ░     ░░░         ░ ░     ░         ░   ░ ░            █
+ █            ░ ░  ░            ░              ░  ░   ░  ░   ░░ ░              █
+  ▄▄▄▄▄▄▄ ▄         ░            ░            ░  ░              ░     ▄ ▄▄▄▄▄▄▄
+ █▄▓▄▄                           ░                                         ▄▄▓▄█
  █                                                                             █
  █  ░  Release Information                                                     █
  █  ░ ---------------- -                                                       █
@@ -55,6 +54,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         bytes32 data;
         address tokenAddr; // address(0) for ETH
         uint256 amount;
+        bytes32 winningClaim;
     }
 
     mapping(uint256 => Bounty) private _bounties;
@@ -68,7 +68,15 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Modifier to check if the bounty token exists
     /// @param tokenId The bounty token ID
     modifier tokenExists(uint256 tokenId) {
-        require(_bounties[tokenId].amount > 0, "Bounty does not exist");
+        require(_bounties[tokenId].data != bytes32(0), "Bounty does not exist");
+        _;
+    }
+
+    /// @notice Modifier to check if the bounty exists and has not been claimed
+    /// @param tokenId The bounty token ID
+    modifier tokenActive(uint256 tokenId) {
+        require(_bounties[tokenId].data != bytes32(0), "Bounty does not exist");
+        require(_bounties[tokenId].winningClaim == bytes32(0), "Bounty has already been claimed");
         _;
     }
 
@@ -139,7 +147,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @param tokenId The bounty token ID
     /// @param tokenAddr The ERC20 token address (must match bounty's tokenAddr)
     /// @param amount The amount to add
-    function topUp(uint256 tokenId, address tokenAddr, uint256 amount) external tokenExists(tokenId) {
+    function topUp(uint256 tokenId, address tokenAddr, uint256 amount) external tokenActive(tokenId) {
         Bounty storage bounty = _bounties[tokenId];
         require(bounty.tokenAddr == tokenAddr, "Token address mismatch");
         require(tokenAddr != address(0), "Use topUp() with ETH for native token");
@@ -153,7 +161,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
 
     /// @notice Adds funds to an existing bounty with ETH
     /// @param tokenId The bounty token ID
-    function topUp(uint256 tokenId) external payable tokenExists(tokenId) {
+    function topUp(uint256 tokenId) external payable tokenActive(tokenId) {
         require(msg.value > 0, "Must send ETH");
         Bounty storage bounty = _bounties[tokenId];
         require(bounty.tokenAddr == address(0), "Bounty uses ERC20, not ETH");
@@ -176,7 +184,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Updates the bounty data (only owner)
     /// @param tokenId The bounty token ID
     /// @param data The new bounty data
-    function update(uint256 tokenId, bytes32 data) external tokenExists(tokenId) onlyOwner(tokenId) {
+    function update(uint256 tokenId, bytes32 data) external tokenActive(tokenId) onlyOwner(tokenId) {
         Bounty storage bounty = _bounties[tokenId];
         bounty.data = data;
         
@@ -190,7 +198,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Attempts to claim a bounty
     /// @param tokenId The bounty token ID
     /// @param data The claim data
-    function makeClaim(uint256 tokenId, bytes32 data) external tokenExists(tokenId) {
+    function makeClaim(uint256 tokenId, bytes32 data) external tokenActive(tokenId) {
         // Store data in SimpleStorage to emit ContenthashChanged event
         simpleStorage.storeSha256(data);
         
@@ -201,7 +209,8 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @notice Fulfills a claim by distributing the bounty to a winner (only owner)
     /// @param tokenId The bounty token ID
     /// @param winner The winner address to distribute the bounty to
-    function fulfillClaim(uint256 tokenId, address winner) external tokenExists(tokenId) onlyOwner(tokenId) {
+    /// @param winningClaim The winning claim data
+    function fulfillClaim(uint256 tokenId, address winner, bytes32 winningClaim) external tokenActive(tokenId) onlyOwner(tokenId) {
         require(winner != address(0), "Winner cannot be zero address");
         
         Bounty storage bounty = _bounties[tokenId];
@@ -209,6 +218,10 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         // Calculate and deduct fee from bounty amount
         uint256 fee = (bounty.amount * FEE_BPS) / BPS_DENOMINATOR;
         uint256 amountAfterFee = bounty.amount - fee;
+        
+        // Update state FIRST (Checks-Effects-Interactions pattern) to prevent reentrancy
+        // Setting winningClaim prevents reentrant calls via tokenActive modifier
+        bounty.winningClaim = winningClaim;
         
         // Transfer fee to beneficiary
         if (bounty.tokenAddr == address(0)) {
@@ -230,7 +243,6 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
             IERC20(bounty.tokenAddr).safeTransfer(winner, amountAfterFee);
         }
         
-        bounty.amount = 0;
         touchIndex();
         
         emit ClaimFulfilled(tokenId, winner);
@@ -241,9 +253,10 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     /// @return data The bounty data
     /// @return tokenAddr The token address (address(0) for ETH)
     /// @return amount The bounty amount
-    function getBounty(uint256 tokenId) external view tokenExists(tokenId) returns (bytes32 data, address tokenAddr, uint256 amount) {
+    /// @return winningClaim The winning claim data (bytes32(0) if not claimed)
+    function getBounty(uint256 tokenId) external view tokenExists(tokenId) returns (bytes32 data, address tokenAddr, uint256 amount, bytes32 winningClaim) {
         Bounty storage bounty = _bounties[tokenId];
-        return (bounty.data, bounty.tokenAddr, bounty.amount);
+        return (bounty.data, bounty.tokenAddr, bounty.amount, bounty.winningClaim);
     }
 
     /// @inheritdoc ERC1155
@@ -259,7 +272,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     function uri(uint256 tokenId) public view virtual override returns (string memory) {
         // Check if bounty exists
         Bounty storage bounty = _bounties[tokenId];
-        if (bounty.amount == 0) {
+        if (bounty.data == bytes32(0)) {
             return "";
         }
         
@@ -267,7 +280,8 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
             tokenId,
             bounty.data,
             bounty.tokenAddr,
-            bounty.amount
+            bounty.amount,
+            bounty.winningClaim
         );
     }
 }

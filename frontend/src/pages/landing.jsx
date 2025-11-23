@@ -18,6 +18,16 @@ const Landing = () => {
   const { bounties, isLoading, error } = useBountiesContext();
   const [descriptionTitles, setDescriptionTitles] = useState({});
 
+  // Helper function to check if bounty is fulfilled
+  const isBountyFulfilled = (bounty) => {
+    if (!bounty) return false;
+    // Check both the fulfilled flag (from indexer) and winningClaim (from contract)
+    const hasFulfilledFlag = bounty.fulfilled === true;
+    const hasWinningClaim = bounty.winningClaim && 
+      bounty.winningClaim !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+    return hasFulfilledFlag || hasWinningClaim;
+  };
+
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
       return `${formatEther(BigInt(amount))} ETH`;
@@ -156,19 +166,39 @@ const Landing = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bounties.map((bounty) => (
+            {bounties.map((bounty) => {
+              // Debug: log bounty data for fulfilled bounties
+              if (bounty.fulfilled || (bounty.winningClaim && bounty.winningClaim !== '0x0000000000000000000000000000000000000000000000000000000000000000')) {
+                console.log(`[Landing] Fulfilled bounty ${bounty.tokenId}:`, {
+                  fulfilled: bounty.fulfilled,
+                  winningClaim: bounty.winningClaim,
+                  isBountyFulfilled: isBountyFulfilled(bounty)
+                });
+              }
+              return (
               <div
                 key={bounty.tokenId}
                 className="card bg-base-200 shadow-xl cursor-pointer hover:shadow-2xl transition-shadow"
                 onClick={() => navigate(`/${bounty.tokenId}`)}
               >
                 <div className="card-body">
-                  <h2 className="card-title">
-                    {descriptionTitles[bounty.tokenId] || `Bounty #${bounty.tokenId}`}
-                    {bounty.fulfilled && (
-                      <div className="badge badge-success">Fulfilled</div>
-                    )}
-                  </h2>
+                  <div className="flex justify-between items-center mb-2">
+                    <h2 className="card-title m-0">
+                      {descriptionTitles[bounty.tokenId] || `Bounty #${bounty.tokenId}`}
+                    </h2>
+                    {(() => {
+                      const fulfilled = isBountyFulfilled(bounty);
+                      if (fulfilled) {
+                        console.log(`[Landing] Bounty ${bounty.tokenId} is fulfilled:`, {
+                          fulfilled: bounty.fulfilled,
+                          winningClaim: bounty.winningClaim,
+                          hasFulfilledFlag: bounty.fulfilled === true,
+                          hasWinningClaim: bounty.winningClaim && bounty.winningClaim !== '0x0000000000000000000000000000000000000000000000000000000000000000'
+                        });
+                      }
+                      return fulfilled ? <div className="badge badge-success">Fulfilled</div> : null;
+                    })()}
+                  </div>
                   {descriptionTitles[bounty.tokenId] && (
                     <div className="text-xs text-base-content/50 mb-2">
                       Bounty #{bounty.tokenId}
@@ -192,7 +222,8 @@ const Landing = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
