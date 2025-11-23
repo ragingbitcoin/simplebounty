@@ -129,8 +129,8 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         // Store data in SimpleStorage to emit ContenthashChanged event
         simpleStorage.storeSha256(data);
         
+        // _mint() triggers _update() which calls touchIndex(), so no need to call it again
         _mint(msg.sender, tokenId, 1, "");
-        touchIndex();
         
         emit BountyCreated(tokenId, data, tokenAddr, amount, msg.sender);
     }

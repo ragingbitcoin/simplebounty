@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { useAccount, usePublicClient } from 'wagmi';
+import { useAccount, usePublicClient, useEnsName } from 'wagmi';
 import { useBounty } from '../hooks/useBounty';
 import { useMakeClaim } from '../hooks/useMakeClaim';
 import { useFulfillClaim } from '../hooks/useFulfillClaim';
 import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TransactionStatus from '../components/TransactionStatus';
+import AddressDisplay from '../components/AddressDisplay';
+import Avatar from '../components/Avatar';
+import Username from '../components/Username';
 import { formatEther } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
 
@@ -31,6 +34,11 @@ const Bounty = () => {
       return `${formatEther(BigInt(amount))} ETH`;
     }
     return `${amount} tokens`;
+  };
+
+  const formatAddress = (addr) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   // Fetch description text from dservice
@@ -85,10 +93,6 @@ const Bounty = () => {
     fetchClaimTexts();
   }, [claims, publicClient]);
 
-  const formatAddress = (addr) => {
-    if (!addr) return '';
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const handleMakeClaim = async () => {
     if (!claimData.trim()) {
@@ -163,7 +167,7 @@ const Bounty = () => {
 
   return (
     <div className="min-h-screen bg-base-100 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <WalletInfo />
         
         <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm mb-4">
@@ -192,148 +196,168 @@ const Bounty = () => {
           }}
         />
 
-        <div className="card bg-base-200 shadow-xl">
-          <div className="card-body">
-            <div className="flex justify-between items-start mb-4">
-              <h1 className="text-4xl font-bold">Bounty #{bounty.tokenId}</h1>
+        {/* Header */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-semibold">
+              Bounty #{bounty.tokenId}
               {bounty.fulfilled && (
-                <div className="badge badge-success badge-lg">Fulfilled</div>
+                <span className="ml-3 badge badge-success">Fulfilled</span>
               )}
-            </div>
+            </h1>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-base-content/60">
+            <span className="font-semibold text-primary text-lg">
+              {formatAmount(bounty.amount, bounty.tokenAddr)}
+            </span>
+            {bounty.fulfilled && bounty.winners && bounty.winners.length > 0 && (
+              <span>• {bounty.winners.length} winner{bounty.winners.length > 1 ? 's' : ''}</span>
+            )}
+            <span>• {claims.length} claim{claims.length !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
 
-            <div className="divider"></div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Description</h3>
+        {/* Main Issue/Description - GitHub style */}
+        <div className="border border-base-300 rounded-lg bg-base-100">
+          <div className="flex gap-4 p-4">
+            <Avatar address={bounty.creator} size="md" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Username address={bounty.creator} />
+                <span className="text-sm text-base-content/60">opened this bounty</span>
+              </div>
+              <div className="prose prose-sm max-w-none">
                 {descriptionLoading ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 py-4">
                     <span className="loading loading-spinner loading-sm"></span>
                     <span className="text-base-content/60">Loading description...</span>
                   </div>
                 ) : descriptionError ? (
-                  <p className="text-base-content/80 text-error">{descriptionError}</p>
+                  <p className="text-error">{descriptionError}</p>
                 ) : (
-                  <p className="text-base-content/80 whitespace-pre-wrap">{descriptionText || 'Loading...'}</p>
+                  <div className="text-base-content whitespace-pre-wrap">
+                    {descriptionText || 'Loading...'}
+                  </div>
                 )}
               </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Reward</h3>
-                <p className="text-2xl font-bold text-primary">
-                  {formatAmount(bounty.amount, bounty.tokenAddr)}
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Creator</h3>
-                <p className="text-base-content/80 font-mono">{formatAddress(bounty.creator)}</p>
-              </div>
-
-              {bounty.fulfilled && bounty.winners && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Winners</h3>
-                  <div className="space-y-1">
-                    {bounty.winners.map((winner, idx) => (
-                      <p key={idx} className="text-base-content/80 font-mono">{formatAddress(winner)}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-
           </div>
         </div>
 
+        {/* Claims/Comments - GitHub style */}
         {claims.length > 0 && (
-          <div className="card bg-base-200 shadow-xl mt-6">
-            <div className="card-body">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4">
-                <h2 className="text-xl sm:text-2xl font-bold">Claims ({claims.length})</h2>
-                {isOwner && !bounty.fulfilled && selectedClaims.size > 0 && (
-                  <button
-                    onClick={handleFulfillClaim}
-                    disabled={isFulfillPending}
-                    className="btn btn-success btn-sm w-full sm:w-auto"
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">
+                {claims.length} {claims.length === 1 ? 'Claim' : 'Claims'}
+              </h2>
+              {isOwner && !bounty.fulfilled && selectedClaims.size > 0 && (
+                <button
+                  onClick={handleFulfillClaim}
+                  disabled={isFulfillPending}
+                  className="btn btn-success btn-sm"
+                >
+                  {isFulfillPending ? 'Processing...' : `Fulfill ${selectedClaims.size} Selected`}
+                </button>
+              )}
+            </div>
+            <div className="border border-base-300 rounded-lg bg-base-100 divide-y divide-base-300">
+              {claims.map((claim, idx) => {
+                const isSelected = selectedClaims.has(claim.transactionHash);
+                return (
+                  <div
+                    key={idx}
+                    className={`${
+                      isOwner && !bounty.fulfilled
+                        ? isSelected
+                          ? 'bg-primary/5 border-l-4 border-l-primary'
+                          : 'hover:bg-base-200/50 cursor-pointer'
+                        : ''
+                    }`}
+                    onClick={() => isOwner && !bounty.fulfilled && toggleClaimSelection(claim.transactionHash)}
                   >
-                    {isFulfillPending ? 'Processing...' : `Fulfill ${selectedClaims.size} Selected`}
-                  </button>
-                )}
-              </div>
-              <div className="space-y-3">
-                {claims.map((claim, idx) => {
-                  const isSelected = selectedClaims.has(claim.transactionHash);
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-4 border rounded-md ${
-                        isOwner && !bounty.fulfilled
-                          ? isSelected
-                            ? 'border-primary bg-primary/10 cursor-pointer'
-                            : 'border-base-300 cursor-pointer hover:border-base-content/20'
-                          : 'border-base-300'
-                      }`}
-                      onClick={() => isOwner && !bounty.fulfilled && toggleClaimSelection(claim.transactionHash)}
-                    >
-                      <div className="flex items-start gap-3">
-                        {isOwner && !bounty.fulfilled && (
+                    <div className="flex gap-4 p-4">
+                      {isOwner && !bounty.fulfilled && (
+                        <div className="pt-1">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleClaimSelection(claim.transactionHash)}
                             onClick={(e) => e.stopPropagation()}
-                            className="checkbox checkbox-primary mt-1"
+                            className="checkbox checkbox-primary checkbox-sm"
                           />
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="font-semibold font-mono">{formatAddress(claim.claimant)}</p>
-                            <span className="text-xs text-base-content/60">Block: {claim.blockNumber}</span>
+                        </div>
+                      )}
+                      <Avatar address={claim.claimant} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Username address={claim.claimant} />
+                          <span className="text-sm text-base-content/60">
+                            commented
+                          </span>
+                          <span className="text-sm text-base-content/40">
+                            • Block {claim.blockNumber}
+                          </span>
+                        </div>
+                        <div className="prose prose-sm max-w-none">
+                          <div className="text-base-content whitespace-pre-wrap">
+                            {claimTexts[claim.transactionHash] || (
+                              <span className="text-base-content/60 italic">Loading claim data...</span>
+                            )}
                           </div>
-                          <p className="text-sm text-base-content/80 whitespace-pre-wrap">
-                            {claimTexts[claim.transactionHash] || 'Loading claim data...'}
-                          </p>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
+            </div>
+            {isOwner && !bounty.fulfilled && claims.length > 0 && selectedClaims.size === 0 && (
+              <div className="mt-4 text-sm text-base-content/60 text-center border-t border-base-300 pt-4">
+                Select claims above to fulfill them
               </div>
-              {isOwner && !bounty.fulfilled && claims.length > 0 && selectedClaims.size === 0 && (
-                <div className="mt-4 text-sm text-base-content/60 text-center">
-                  Select claims above to fulfill them
+            )}
+          </div>
+        )}
+
+        {/* Make a Claim Form - GitHub style */}
+        {!bounty.fulfilled && (
+          <div className="border border-base-300 rounded-lg bg-base-100 mt-6">
+            <div className="p-4">
+              <h3 className="text-lg font-semibold mb-4">Add a claim</h3>
+              <div className="space-y-3">
+                <textarea
+                  className="textarea textarea-bordered w-full min-h-[120px] resize-none"
+                  placeholder="Leave a comment..."
+                  value={claimData}
+                  onChange={(e) => setClaimData(e.target.value)}
+                  rows={6}
+                />
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-base-content/60">
+                    {!isConnected && 'Connect your wallet to make a claim'}
+                  </div>
+                  <button
+                    onClick={handleMakeClaim}
+                    disabled={!isConnected || isClaimPending || !claimData.trim()}
+                    className="btn btn-primary"
+                  >
+                    {isClaimPending ? 'Submitting...' : 'Comment'}
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Make a Claim Form */}
-        {!bounty.fulfilled && (
-          <div className="card bg-base-200 shadow-xl mt-6">
-            <div className="card-body">
-              <h3 className="text-lg font-semibold mb-4">Make a Claim</h3>
-              <div className="space-y-3">
-                <textarea
-                  className="textarea textarea-bordered w-full min-h-[100px] resize-none"
-                  placeholder="Enter your claim description..."
-                  value={claimData}
-                  onChange={(e) => setClaimData(e.target.value)}
-                  rows={4}
-                />
-                <button
-                  onClick={handleMakeClaim}
-                  disabled={!isConnected || isClaimPending || !claimData.trim()}
-                  className="btn btn-primary w-full"
-                >
-                  {isClaimPending ? 'Submitting...' : 'Submit Claim'}
-                </button>
-                {!isConnected && (
-                  <div className="text-sm text-base-content/60 text-center">
-                    Connect your wallet to make a claim
-                  </div>
-                )}
-              </div>
+        {/* Winners section */}
+        {bounty.fulfilled && bounty.winners && bounty.winners.length > 0 && (
+          <div className="border border-success/30 rounded-lg bg-success/5 mt-6 p-4">
+            <h3 className="text-lg font-semibold mb-3 text-success">Winners</h3>
+            <div className="space-y-2">
+              {bounty.winners.map((winner, idx) => (
+                <AddressDisplay key={idx} address={winner} size="md" />
+              ))}
             </div>
           </div>
         )}

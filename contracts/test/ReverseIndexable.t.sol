@@ -9,6 +9,11 @@ contract TestReverseIndexable is ReverseIndexable {
     function callTouchIndex() public {
         touchIndex();
     }
+    
+    function callTouchIndexTwice() public {
+        touchIndex();
+        touchIndex();
+    }
 }
 
 contract ReverseIndexableTest is Test {
@@ -83,6 +88,26 @@ contract ReverseIndexableTest is Test {
 
         // Verify we can reconstruct the chain by reading events
         assertEq(indexable.blockPointer(), blocks[4]);
+    }
+
+    function test_TouchIndexCanBeCalledMultipleTimes() public {
+        // Note: touchIndex() can be called multiple times, but inheriting contracts
+        // should ensure it's only called once per transaction to avoid duplicate events
+        vm.recordLogs();
+        
+        // Call touchIndex twice in same transaction
+        indexable.callTouchIndex();
+        indexable.callTouchIndex();
+        
+        // Both calls will emit events (no guard anymore)
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 blockPointerEventCount = 0;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("BlockPointer(uint256)")) {
+                blockPointerEventCount++;
+            }
+        }
+        assertEq(blockPointerEventCount, 2, "Both calls emit events (no guard)");
     }
 }
 
