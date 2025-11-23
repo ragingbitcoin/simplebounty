@@ -8,9 +8,9 @@ export const contracts = {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496', // Default from terminal output
     },
     11155111: {
-      SimpleBounty: '0xF9D8469CC3B2C99db0D1223A09c6744345C78ad9',
-      SimpleStorage: '0x41b3a0EFe9d372CCa895469283658a9Ab30a8339',
-      TokenRendererV2: '0x49eB4e3C4aA6f756FAf0362A7bdE80A67679Bd78',
+      SimpleBounty: '0x092DcE3916271412b5e69727175187165A3c8ceE',
+      SimpleStorage: '0xADe141cC757b319D014572224cc8F6ED838F7337',
+      TokenRendererV2: '0x8258F0e2e61f767068A481FEF2dFA0A6Dd5526A5',
     },
     1: {
       SimpleBounty: process.env.SIMPLEBOUNTY_ADDRESS || '',
@@ -92,7 +92,7 @@ export const contracts = {
         "name": "fulfillClaim",
         "inputs": [
           { "name": "tokenId", "type": "uint256", "internalType": "uint256" },
-          { "name": "winners", "type": "address[]", "internalType": "address[]" }
+          { "name": "winner", "type": "address", "internalType": "address" }
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
@@ -189,7 +189,7 @@ export const contracts = {
         "name": "ClaimFulfilled",
         "inputs": [
           { "name": "tokenId", "type": "uint256", "indexed": true, "internalType": "uint256" },
-          { "name": "winners", "type": "address[]", "indexed": false, "internalType": "address[]" }
+          { "name": "winner", "type": "address", "indexed": false, "internalType": "address" }
         ],
         "anonymous": false
       },

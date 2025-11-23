@@ -174,7 +174,7 @@ export function parseEvent(event) {
       return {
         type: 'ClaimFulfilled',
         tokenId: Number(args.tokenId),
-        winners: args.winners,
+        winner: args.winner,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
       };
@@ -260,9 +260,9 @@ export function buildStateFromEvents(events) {
         // Mark bounty as fulfilled
         const fulfilled = bounties.get(event.tokenId);
         if (fulfilled) {
-          console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winners=${event.winners.length}, block=${event.blockNumber}`);
+          console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winner=${event.winner}, block=${event.blockNumber}`);
           fulfilled.fulfilled = true;
-          fulfilled.winners = event.winners;
+          fulfilled.winner = event.winner;
           fulfilled.fulfilledAt = event.blockNumber;
         }
         break;
@@ -410,9 +410,9 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
             // Mark bounty as fulfilled
             const fulfilled = bounties.get(event.tokenId);
             if (fulfilled) {
-              console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winners=${event.winners.length}, block=${event.blockNumber}`);
+              console.log(`[Indexer] Bounty fulfilled: tokenId=${event.tokenId}, winner=${event.winner}, block=${event.blockNumber}`);
               fulfilled.fulfilled = true;
-              fulfilled.winners = event.winners;
+              fulfilled.winner = event.winner;
               fulfilled.fulfilledAt = event.blockNumber;
             }
             break;

@@ -63,7 +63,7 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
     event BountyToppedUp(uint256 indexed tokenId, address tokenAddr, uint256 amount);
     event BountyUpdated(uint256 indexed tokenId, bytes32 newData);
     event ClaimAttempted(uint256 indexed tokenId, address claimant, bytes32 claimData);
-    event ClaimFulfilled(uint256 indexed tokenId, address[] winners);
+    event ClaimFulfilled(uint256 indexed tokenId, address winner);
 
     /// @notice Modifier to check if the bounty token exists
     /// @param tokenId The bounty token ID
@@ -198,11 +198,11 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
         emit ClaimAttempted(tokenId, msg.sender, data);
     }
 
-    /// @notice Fulfills claims by distributing the bounty to winners (only owner)
+    /// @notice Fulfills a claim by distributing the bounty to a winner (only owner)
     /// @param tokenId The bounty token ID
-    /// @param winners Array of winner addresses to distribute the bounty to
-    function fulfillClaim(uint256 tokenId, address[] memory winners) external tokenExists(tokenId) onlyOwner(tokenId) {
-        require(winners.length > 0, "Must have at least one winner");
+    /// @param winner The winner address to distribute the bounty to
+    function fulfillClaim(uint256 tokenId, address winner) external tokenExists(tokenId) onlyOwner(tokenId) {
+        require(winner != address(0), "Winner cannot be zero address");
         
         Bounty storage bounty = _bounties[tokenId];
         
@@ -220,36 +220,20 @@ contract SimpleBounty is ERC1155, ReverseIndexable {
             IERC20(bounty.tokenAddr).safeTransfer(beneficiary, fee);
         }
         
-        uint256 amountPerWinner = amountAfterFee / winners.length;
-        uint256 remainder = amountAfterFee % winners.length;
-        
+        // Transfer the full amount after fee to the winner
         if (bounty.tokenAddr == address(0)) {
             // ETH
-            for (uint256 i = 0; i < winners.length; i++) {
-                (bool success, ) = winners[i].call{value: amountPerWinner}("");
-                require(success, "ETH transfer failed");
-            }
-            // Send remainder back to bounty owner (msg.sender is the owner)
-            if (remainder > 0) {
-                (bool success, ) = msg.sender.call{value: remainder}("");
-                require(success, "ETH remainder transfer failed");
-            }
+            (bool success, ) = winner.call{value: amountAfterFee}("");
+            require(success, "ETH transfer failed");
         } else {
             // ERC20
-            IERC20 token = IERC20(bounty.tokenAddr);
-            for (uint256 i = 0; i < winners.length; i++) {
-                token.safeTransfer(winners[i], amountPerWinner);
-            }
-            // Send remainder back to bounty owner (msg.sender is the owner)
-            if (remainder > 0) {
-                token.safeTransfer(msg.sender, remainder);
-            }
+            IERC20(bounty.tokenAddr).safeTransfer(winner, amountAfterFee);
         }
         
         bounty.amount = 0;
         touchIndex();
         
-        emit ClaimFulfilled(tokenId, winners);
+        emit ClaimFulfilled(tokenId, winner);
     }
 
     /// @notice Gets bounty data

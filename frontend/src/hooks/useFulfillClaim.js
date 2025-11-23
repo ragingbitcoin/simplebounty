@@ -3,7 +3,7 @@ import { useChainId } from './useChainId';
 import { contracts } from '../config/contracts';
 
 /**
- * Hook to fulfill a claim (distribute bounty to winners)
+ * Hook to fulfill a claim (distribute bounty to a winner)
  */
 export function useFulfillClaim() {
   const chainId = useChainId();
@@ -14,20 +14,20 @@ export function useFulfillClaim() {
     hash,
   });
 
-  const fulfillClaim = async (tokenId, winners) => {
+  const fulfillClaim = async (tokenId, winner) => {
     if (!contractAddress) {
       throw new Error('Contract address not configured');
     }
 
-    if (!Array.isArray(winners) || winners.length === 0) {
-      throw new Error('Must provide at least one winner address');
+    if (!winner || typeof winner !== 'string') {
+      throw new Error('Must provide a winner address');
     }
 
     await writeContract({
       address: contractAddress,
       abi: contracts.abis.SimpleBounty,
       functionName: 'fulfillClaim',
-      args: [BigInt(tokenId), winners],
+      args: [BigInt(tokenId), winner],
     });
   };
 

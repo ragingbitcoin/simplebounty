@@ -51,7 +51,7 @@ deploy-sepolia:
 		exit 1; \
 	fi
 	forge script script/Setup.s.sol:SetupScript --rpc-url https://sepolia.gateway.tenderly.co --broadcast --sig "run(address,string)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
-	node script/updateContracts.cjs 11155111
+	# node script/updateContracts.cjs 11155111
 
 # Deploy to mainnet
 # Usage: make deploy <beneficiary> <storageLocation>
@@ -63,7 +63,7 @@ deploy:
 		exit 1; \
 	fi
 	forge script script/Setup.s.sol:SetupScript --rpc-url https://mainnet.gateway.tenderly.co --broadcast --sig "run(address,string)" $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) --account simplepage-deploy
-	node script/updateContracts.cjs 1
+	# node script/updateContracts.cjs 1
 
 # Test token renderers and generate SVG outputs
 # Usage: make test-renderers

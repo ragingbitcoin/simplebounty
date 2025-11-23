@@ -23,7 +23,7 @@ const Bounty = () => {
   const { fulfillClaim, hash: fulfillHash, isPending: isFulfillPending, isConfirming: isFulfillConfirming, isSuccess: isFulfillSuccess, error: fulfillError, reset: resetFulfill } = useFulfillClaim();
 
   const [claimData, setClaimData] = useState('');
-  const [selectedClaims, setSelectedClaims] = useState(new Set());
+  const [selectedClaim, setSelectedClaim] = useState(null);
   const [descriptionText, setDescriptionText] = useState(null);
   const [descriptionLoading, setDescriptionLoading] = useState(false);
   const [descriptionError, setDescriptionError] = useState(null);
@@ -107,31 +107,27 @@ const Bounty = () => {
   };
 
   const handleFulfillClaim = async () => {
-    if (selectedClaims.size === 0) {
-      alert('Please select at least one claim to fulfill');
+    if (!selectedClaim) {
+      alert('Please select a claim to fulfill');
       return;
     }
-    // Get the claimant addresses for the selected transaction hashes
-    const selectedTransactionHashes = Array.from(selectedClaims);
-    const winnerList = claims
-      .filter(claim => selectedTransactionHashes.includes(claim.transactionHash))
-      .map(claim => claim.claimant);
+    // Get the claimant address for the selected claim
+    const claim = claims.find(c => c.transactionHash === selectedClaim);
+    if (!claim) {
+      alert('Selected claim not found');
+      return;
+    }
     try {
-      await fulfillClaim(tokenId, winnerList);
-      setSelectedClaims(new Set());
+      await fulfillClaim(tokenId, claim.claimant);
+      setSelectedClaim(null);
     } catch (err) {
       console.error('Error fulfilling claim:', err);
     }
   };
 
   const toggleClaimSelection = (transactionHash) => {
-    const newSelected = new Set(selectedClaims);
-    if (newSelected.has(transactionHash)) {
-      newSelected.delete(transactionHash);
-    } else {
-      newSelected.add(transactionHash);
-    }
-    setSelectedClaims(newSelected);
+    // Single select: if already selected, deselect; otherwise select this one
+    setSelectedClaim(selectedClaim === transactionHash ? null : transactionHash);
   };
 
   const isOwner = bounty && isConnected && address && bounty.creator?.toLowerCase() === address.toLowerCase();
@@ -192,7 +188,7 @@ const Bounty = () => {
           isConfirmed={isFulfillSuccess}
           reset={resetFulfill}
           onSuccess={() => {
-            setSelectedClaims(new Set());
+            setSelectedClaim(null);
           }}
         />
 
@@ -210,8 +206,8 @@ const Bounty = () => {
             <span className="font-semibold text-primary text-lg">
               {formatAmount(bounty.amount, bounty.tokenAddr)}
             </span>
-            {bounty.fulfilled && bounty.winners && bounty.winners.length > 0 && (
-              <span>• {bounty.winners.length} winner{bounty.winners.length > 1 ? 's' : ''}</span>
+            {bounty.fulfilled && bounty.winner && (
+              <span>• Winner selected</span>
             )}
             <span>• {claims.length} claim{claims.length !== 1 ? 's' : ''}</span>
           </div>
@@ -251,19 +247,19 @@ const Bounty = () => {
               <h2 className="text-xl font-semibold">
                 {claims.length} {claims.length === 1 ? 'Claim' : 'Claims'}
               </h2>
-              {isOwner && !bounty.fulfilled && selectedClaims.size > 0 && (
+              {isOwner && !bounty.fulfilled && selectedClaim && (
                 <button
                   onClick={handleFulfillClaim}
                   disabled={isFulfillPending}
                   className="btn btn-success btn-sm"
                 >
-                  {isFulfillPending ? 'Processing...' : `Fulfill ${selectedClaims.size} Selected`}
+                  {isFulfillPending ? 'Processing...' : 'Fulfill Selected Claim'}
                 </button>
               )}
             </div>
             <div className="border border-base-300 rounded-lg bg-base-100 divide-y divide-base-300">
               {claims.map((claim, idx) => {
-                const isSelected = selectedClaims.has(claim.transactionHash);
+                const isSelected = selectedClaim === claim.transactionHash;
                 return (
                   <div
                     key={idx}
@@ -280,11 +276,11 @@ const Bounty = () => {
                       {isOwner && !bounty.fulfilled && (
                         <div className="pt-1">
                           <input
-                            type="checkbox"
+                            type="radio"
                             checked={isSelected}
                             onChange={() => toggleClaimSelection(claim.transactionHash)}
                             onClick={(e) => e.stopPropagation()}
-                            className="checkbox checkbox-primary checkbox-sm"
+                            className="radio radio-primary radio-sm"
                           />
                         </div>
                       )}
@@ -312,9 +308,9 @@ const Bounty = () => {
                 );
               })}
             </div>
-            {isOwner && !bounty.fulfilled && claims.length > 0 && selectedClaims.size === 0 && (
+            {isOwner && !bounty.fulfilled && claims.length > 0 && !selectedClaim && (
               <div className="mt-4 text-sm text-base-content/60 text-center border-t border-base-300 pt-4">
-                Select claims above to fulfill them
+                Select a claim above to fulfill it
               </div>
             )}
           </div>
@@ -350,14 +346,12 @@ const Bounty = () => {
           </div>
         )}
 
-        {/* Winners section */}
-        {bounty.fulfilled && bounty.winners && bounty.winners.length > 0 && (
+        {/* Winner section */}
+        {bounty.fulfilled && bounty.winner && (
           <div className="border border-success/30 rounded-lg bg-success/5 mt-6 p-4">
-            <h3 className="text-lg font-semibold mb-3 text-success">Winners</h3>
+            <h3 className="text-lg font-semibold mb-3 text-success">Winner</h3>
             <div className="space-y-2">
-              {bounty.winners.map((winner, idx) => (
-                <AddressDisplay key={idx} address={winner} size="md" />
-              ))}
+              <AddressDisplay address={bounty.winner} size="md" />
             </div>
           </div>
         )}
