@@ -5,13 +5,16 @@ import { useBountiesContext } from '../contexts/BountiesContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Avatar from '../components/Avatar';
 import Username from '../components/Username';
-import { formatEther } from 'viem';
+import { formatEther, formatUnits } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
 import { parseMarkdownWithFrontmatter } from '../utils/markdown';
+import { useChainId } from '../hooks/useChainId';
+import { getTokenByAddress } from '../config/tokens';
 
 const Landing = () => {
   const navigate = useNavigate();
   const publicClient = usePublicClient();
+  const chainId = useChainId();
   const { bounties, isLoading, error } = useBountiesContext();
   const [descriptionTitles, setDescriptionTitles] = useState({});
 
@@ -19,6 +22,15 @@ const Landing = () => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
       return `${formatEther(BigInt(amount))} ETH`;
     }
+    
+    // Look up token by address
+    const token = getTokenByAddress(tokenAddr, chainId);
+    if (token) {
+      const formattedAmount = formatUnits(BigInt(amount), token.decimals);
+      return `${formattedAmount} ${token.symbol}`;
+    }
+    
+    // Fallback if token not found in config
     return `${amount} tokens`;
   };
 

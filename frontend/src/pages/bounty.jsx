@@ -11,15 +11,18 @@ import TransactionStatus from '../components/TransactionStatus';
 import AddressDisplay from '../components/AddressDisplay';
 import Avatar from '../components/Avatar';
 import Username from '../components/Username';
-import { formatEther } from 'viem';
+import { formatEther, formatUnits } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
 import { parseMarkdownWithFrontmatter, MarkdownRenderer } from '../utils/markdown';
+import { useChainId } from '../hooks/useChainId';
+import { getTokenByAddress } from '../config/tokens';
 
 const Bounty = () => {
   const { tokenId } = useParams();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
+  const chainId = useChainId();
   const { bounty, claims, isLoading, error } = useBounty(tokenId);
   const { makeClaim, hash: claimHash, isPending: isClaimPending, isConfirming: isClaimConfirming, isSuccess: isClaimSuccess, error: claimError, reset: resetClaim } = useMakeClaim();
   const { fulfillClaim, hash: fulfillHash, isPending: isFulfillPending, isConfirming: isFulfillConfirming, isSuccess: isFulfillSuccess, error: fulfillError, reset: resetFulfill } = useFulfillClaim();
@@ -38,6 +41,15 @@ const Bounty = () => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
       return `${formatEther(BigInt(amount))} ETH`;
     }
+    
+    // Look up token by address
+    const token = getTokenByAddress(tokenAddr, chainId);
+    if (token) {
+      const formattedAmount = formatUnits(BigInt(amount), token.decimals);
+      return `${formattedAmount} ${token.symbol}`;
+    }
+    
+    // Fallback if token not found in config
     return `${amount} tokens`;
   };
 
