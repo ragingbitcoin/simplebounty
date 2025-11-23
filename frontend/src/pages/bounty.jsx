@@ -4,6 +4,7 @@ import { useAccount, usePublicClient, useEnsName } from 'wagmi';
 import { useBounty } from '../hooks/useBounty';
 import { useMakeClaim } from '../hooks/useMakeClaim';
 import { useFulfillClaim } from '../hooks/useFulfillClaim';
+import { useBountiesContext } from '../contexts/BountiesContext';
 import WalletInfo from '../components/WalletInfo';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TransactionStatus from '../components/TransactionStatus';
@@ -30,6 +31,8 @@ const Bounty = () => {
   const [descriptionLoading, setDescriptionLoading] = useState(false);
   const [descriptionError, setDescriptionError] = useState(null);
   const [claimTexts, setClaimTexts] = useState({});
+  const [blockTimestamps, setBlockTimestamps] = useState({});
+  const { refresh: refreshBounties } = useBountiesContext();
 
   const formatAmount = (amount, tokenAddr) => {
     if (tokenAddr === '0x0000000000000000000000000000000000000000' || !tokenAddr) {
@@ -42,6 +45,72 @@ const Bounty = () => {
     if (!addr) return '';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
+
+  // Format timestamp from block number
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(Number(timestamp) * 1000);
+    return date.toLocaleString();
+  };
+
+  // Format relative time
+  const formatRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(Number(timestamp) * 1000);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSecs < 60) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Fetch block timestamps
+  useEffect(() => {
+    if (!publicClient || !bounty || !claims) return;
+
+    const fetchTimestamps = async () => {
+      const timestamps = {};
+      const blocksToFetch = new Set();
+
+      // Add bounty creation block
+      if (bounty.createdAt) {
+        blocksToFetch.add(bounty.createdAt);
+      }
+
+      // Add claim blocks
+      claims.forEach(claim => {
+        if (claim.blockNumber) {
+          blocksToFetch.add(claim.blockNumber);
+        }
+      });
+
+      // Fetch timestamps for all blocks that we don't already have
+      for (const blockNumber of blocksToFetch) {
+        if (!blockTimestamps[blockNumber]) {
+          try {
+            const block = await publicClient.getBlock({ blockNumber: BigInt(blockNumber) });
+            timestamps[blockNumber] = block.timestamp.toString();
+          } catch (err) {
+            console.error(`Error fetching block ${blockNumber}:`, err);
+          }
+        }
+      }
+
+      if (Object.keys(timestamps).length > 0) {
+        setBlockTimestamps(prev => ({ ...prev, ...timestamps }));
+      }
+    };
+
+    fetchTimestamps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicClient, bounty?.createdAt, claims]);
 
   // Fetch description text from dservice
   useEffect(() => {
@@ -167,11 +236,11 @@ const Bounty = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-100 p-4 sm:p-8">
+    <div className="min-h-screen bg-base-100 px-2 py-3 sm:p-4 sm:py-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         <WalletInfo />
         
-        <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm mb-4">
+        <button onClick={() => navigate('/')} className="btn btn-ghost btn-sm mb-3 sm:mb-4">
           ← Back to Bounties
         </button>
 
@@ -181,8 +250,10 @@ const Bounty = () => {
           error={claimError}
           isConfirmed={isClaimSuccess}
           reset={resetClaim}
+          redirectPath={`/${tokenId}`}
           onSuccess={() => {
             setClaimData('');
+            refreshBounties();
           }}
         />
 
@@ -192,28 +263,30 @@ const Bounty = () => {
           error={fulfillError}
           isConfirmed={isFulfillSuccess}
           reset={resetFulfill}
+          redirectPath={`/${tokenId}`}
           onSuccess={() => {
             setSelectedClaim(null);
+            refreshBounties();
           }}
         />
 
         {/* Header */}
-        <div className="mb-4">
+        <div className="mb-3 sm:mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-semibold">
+            <h1 className="text-2xl sm:text-3xl font-semibold">
               {descriptionTitle || `Bounty #${bounty.tokenId}`}
               {bounty.fulfilled && (
-                <span className="ml-3 badge badge-success">Fulfilled</span>
+                <span className="ml-2 sm:ml-3 badge badge-success text-xs sm:text-sm">Fulfilled</span>
               )}
             </h1>
           </div>
           {!descriptionTitle && (
-            <div className="text-base-content/60 mb-2">
+            <div className="text-base-content/60 mb-2 text-sm sm:text-base">
               Bounty #{bounty.tokenId}
             </div>
           )}
-          <div className="flex items-center gap-4 text-sm text-base-content/60">
-            <span className="font-semibold text-primary text-lg">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-base-content/60">
+            <span className="font-semibold text-primary text-base sm:text-lg">
               {formatAmount(bounty.amount, bounty.tokenAddr)}
             </span>
             {bounty.fulfilled && bounty.winner && (
@@ -225,12 +298,17 @@ const Bounty = () => {
 
         {/* Main Issue/Description - GitHub style */}
         <div className="border border-base-300 rounded-lg bg-base-100">
-          <div className="flex gap-4 p-4">
+          <div className="flex gap-2 sm:gap-4 p-3 sm:p-4">
             <Avatar address={bounty.creator} size="md" />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2">
                 <Username address={bounty.creator} />
-                <span className="text-sm text-base-content/60">opened this bounty</span>
+                <span className="text-xs sm:text-sm text-base-content/60">opened this bounty</span>
+                {bounty.createdAt && blockTimestamps[bounty.createdAt] && (
+                  <span className="text-xs sm:text-sm text-base-content/40">
+                    • {formatRelativeTime(blockTimestamps[bounty.createdAt])}
+                  </span>
+                )}
               </div>
               <div className="prose prose-sm max-w-none">
                 {descriptionLoading ? (
@@ -250,16 +328,23 @@ const Bounty = () => {
 
         {/* Claims/Comments - GitHub style */}
         {claims.length > 0 && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
-                {claims.length} {claims.length === 1 ? 'Claim' : 'Claims'}
-              </h2>
+          <div className="mt-4 sm:mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-semibold">
+                  {claims.length} {claims.length === 1 ? 'Claim' : 'Claims'}
+                </h2>
+                {isOwner && !bounty.fulfilled && claims.length > 0 && !selectedClaim && (
+                  <span className="text-xs sm:text-sm text-base-content/60">
+                    Select a claim below to fulfill it
+                  </span>
+                )}
+              </div>
               {isOwner && !bounty.fulfilled && selectedClaim && (
                 <button
                   onClick={handleFulfillClaim}
                   disabled={isFulfillPending}
-                  className="btn btn-success btn-sm"
+                  className="btn btn-success btn-sm text-xs sm:text-sm"
                 >
                   {isFulfillPending ? 'Processing...' : 'Fulfill Selected Claim'}
                 </button>
@@ -280,7 +365,7 @@ const Bounty = () => {
                     }`}
                     onClick={() => isOwner && !bounty.fulfilled && toggleClaimSelection(claim.transactionHash)}
                   >
-                    <div className="flex gap-4 p-4">
+                    <div className="flex gap-2 sm:gap-4 p-3 sm:p-4">
                       {isOwner && !bounty.fulfilled && (
                         <div className="pt-1">
                           <input
@@ -294,14 +379,21 @@ const Bounty = () => {
                       )}
                       <Avatar address={claim.claimant} size="md" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2">
                           <Username address={claim.claimant} />
-                          <span className="text-sm text-base-content/60">
+                          <span className="text-xs sm:text-sm text-base-content/60">
                             commented
                           </span>
-                          <span className="text-sm text-base-content/40">
-                            • Block {claim.blockNumber}
-                          </span>
+                          {claim.blockNumber && blockTimestamps[claim.blockNumber] && (
+                            <span className="text-xs sm:text-sm text-base-content/40" title={formatTimestamp(blockTimestamps[claim.blockNumber])}>
+                              • {formatRelativeTime(blockTimestamps[claim.blockNumber])}
+                            </span>
+                          )}
+                          {claim.blockNumber && !blockTimestamps[claim.blockNumber] && (
+                            <span className="text-xs sm:text-sm text-base-content/40">
+                              • Block {claim.blockNumber}
+                            </span>
+                          )}
                         </div>
                         <div className="prose prose-sm max-w-none">
                           {claimTexts[claim.transactionHash] ? (
@@ -316,19 +408,14 @@ const Bounty = () => {
                 );
               })}
             </div>
-            {isOwner && !bounty.fulfilled && claims.length > 0 && !selectedClaim && (
-              <div className="mt-4 text-sm text-base-content/60 text-center border-t border-base-300 pt-4">
-                Select a claim above to fulfill it
-              </div>
-            )}
           </div>
         )}
 
         {/* Make a Claim Form - GitHub style */}
         {!bounty.fulfilled && (
-          <div className="border border-base-300 rounded-lg bg-base-100 mt-6">
-            <div className="p-4">
-              <h3 className="text-lg font-semibold mb-4">Add a claim</h3>
+          <div className="border border-base-300 rounded-lg bg-base-100 mt-4 sm:mt-6">
+            <div className="p-3 sm:p-4">
+              <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Add a claim</h3>
               <div className="space-y-3">
                 <textarea
                   className="textarea textarea-bordered w-full min-h-[120px] resize-none"
@@ -356,8 +443,8 @@ const Bounty = () => {
 
         {/* Winner section */}
         {bounty.fulfilled && bounty.winner && (
-          <div className="border border-success/30 rounded-lg bg-success/5 mt-6 p-4">
-            <h3 className="text-lg font-semibold mb-3 text-success">Winner</h3>
+          <div className="border border-success/30 rounded-lg bg-success/5 mt-4 sm:mt-6 p-3 sm:p-4">
+            <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 text-success">Winner</h3>
             <div className="space-y-2">
               <AddressDisplay address={bounty.winner} size="md" />
             </div>

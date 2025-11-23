@@ -448,3 +448,125 @@ export async function* indexAllEvents(publicClient, contractAddress, chainId) {
   }
 }
 
+/**
+ * Get new events from a specific block range and apply them to existing state
+ * @param {Object} publicClient - Viem public client
+ * @param {string} contractAddress - SimpleBounty contract address
+ * @param {number} fromBlock - Starting block (inclusive)
+ * @param {number} toBlock - Ending block (inclusive)
+ * @param {Object} existingState - Existing state with bounties and claims
+ * @returns {Object} Updated state with new events applied
+ */
+export async function getNewEventsInRange(publicClient, contractAddress, fromBlock, toBlock, existingState = { bounties: [], claims: {} }) {
+  if (fromBlock > toBlock || fromBlock === 0) {
+    return existingState;
+  }
+
+  try {
+    // Get all events in the range
+    const logs = await publicClient.getLogs({
+      address: contractAddress,
+      fromBlock: BigInt(fromBlock),
+      toBlock: BigInt(toBlock),
+    });
+
+    // Convert existing state to Maps for easier manipulation
+    const bounties = new Map((existingState.bounties || []).map(b => [b.tokenId, { ...b }]));
+    const claims = new Map();
+    
+    // Initialize claims map from existing state
+    Object.entries(existingState.claims || {}).forEach(([tokenId, claimList]) => {
+      claims.set(Number(tokenId), [...claimList]);
+    });
+
+    // Process new events
+    for (const event of logs) {
+      if (!event.topics || event.topics.length === 0) {
+        continue;
+      }
+
+      try {
+        const decoded = decodeEventLog({
+          abi: contracts.abis.SimpleBounty,
+          data: event.data,
+          topics: event.topics,
+        });
+
+        const parsed = parseEvent({
+          eventName: decoded.eventName,
+          args: decoded.args,
+          blockNumber: Number(event.blockNumber),
+          transactionHash: event.transactionHash,
+        });
+
+        // Apply event to state
+        switch (parsed.type) {
+          case 'BountyCreated':
+            bounties.set(parsed.tokenId, {
+              tokenId: parsed.tokenId,
+              data: parsed.data,
+              tokenAddr: parsed.tokenAddr,
+              amount: parsed.amount,
+              creator: parsed.creator,
+              createdAt: parsed.blockNumber,
+              lastUpdated: parsed.blockNumber,
+            });
+            break;
+
+          case 'BountyToppedUp':
+            const toppedUp = bounties.get(parsed.tokenId);
+            if (toppedUp) {
+              toppedUp.amount = (BigInt(toppedUp.amount) + BigInt(parsed.amount)).toString();
+              toppedUp.lastUpdated = parsed.blockNumber;
+            }
+            break;
+
+          case 'BountyUpdated':
+            const updated = bounties.get(parsed.tokenId);
+            if (updated) {
+              updated.data = parsed.newData;
+              updated.lastUpdated = parsed.blockNumber;
+            }
+            break;
+
+          case 'ClaimAttempted':
+            if (!claims.has(parsed.tokenId)) {
+              claims.set(parsed.tokenId, []);
+            }
+            // Check if claim already exists (avoid duplicates)
+            const existingClaims = claims.get(parsed.tokenId);
+            const claimExists = existingClaims.some(c => c.transactionHash === parsed.transactionHash);
+            if (!claimExists) {
+              claims.get(parsed.tokenId).push({
+                claimant: parsed.claimant,
+                claimData: parsed.claimData,
+                blockNumber: parsed.blockNumber,
+                transactionHash: parsed.transactionHash,
+              });
+            }
+            break;
+
+          case 'ClaimFulfilled':
+            const fulfilled = bounties.get(parsed.tokenId);
+            if (fulfilled) {
+              fulfilled.fulfilled = true;
+              fulfilled.winner = parsed.winner;
+              fulfilled.fulfilledAt = parsed.blockNumber;
+            }
+            break;
+        }
+      } catch (err) {
+        // Skip events that can't be decoded
+      }
+    }
+
+    return {
+      bounties: Array.from(bounties.values()),
+      claims: Object.fromEntries(claims),
+    };
+  } catch (error) {
+    console.error('Error getting new events in range:', error);
+    return existingState;
+  }
+}
+

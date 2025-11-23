@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router';
 import { usePublicClient } from 'wagmi';
 import { useBountiesContext } from '../contexts/BountiesContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Avatar from '../components/Avatar';
+import Username from '../components/Username';
 import { formatEther } from 'viem';
 import { fetchTextData } from '../utils/dservice-upload';
-import { parseMarkdownWithFrontmatter, MarkdownRenderer } from '../utils/markdown';
+import { parseMarkdownWithFrontmatter } from '../utils/markdown';
 
 const Landing = () => {
   const navigate = useNavigate();
   const publicClient = usePublicClient();
   const { bounties, isLoading, error } = useBountiesContext();
-  const [descriptionTexts, setDescriptionTexts] = useState({});
   const [descriptionTitles, setDescriptionTitles] = useState({});
 
   const formatAmount = (amount, tokenAddr) => {
@@ -21,48 +22,45 @@ const Landing = () => {
     return `${amount} tokens`;
   };
 
-  // Fetch description texts from dservice
+  // Fetch description titles from dservice (only titles, not full descriptions)
   useEffect(() => {
     if (!bounties || bounties.length === 0 || !publicClient) return;
 
-    const fetchDescriptions = async () => {
+    const fetchTitles = async () => {
       const startTime = performance.now();
-      const texts = {};
       
-      // Fetch all descriptions in parallel instead of sequentially
+      // Fetch all titles in parallel
       const fetchPromises = bounties.map(async (bounty) => {
         if (!bounty.data || bounty.data === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-          return { tokenId: bounty.tokenId, text: 'No description', title: null };
+          return { tokenId: bounty.tokenId, title: null };
         }
         try {
           const fetchStart = performance.now();
           const text = await fetchTextData(bounty.data, publicClient);
           const fetchTime = performance.now() - fetchStart;
           if (fetchTime > 500) {
-            console.log(`[Landing] Slow description fetch for bounty ${bounty.tokenId}: ${fetchTime.toFixed(2)}ms`);
+            console.log(`[Landing] Slow title fetch for bounty ${bounty.tokenId}: ${fetchTime.toFixed(2)}ms`);
           }
-          const { title, body } = parseMarkdownWithFrontmatter(text);
-          return { tokenId: bounty.tokenId, text: body, title };
+          const { title } = parseMarkdownWithFrontmatter(text);
+          return { tokenId: bounty.tokenId, title };
         } catch (err) {
-          console.error(`Error fetching description for bounty ${bounty.tokenId}:`, err);
-          return { tokenId: bounty.tokenId, text: 'Error loading description...', title: null };
+          console.error(`Error fetching title for bounty ${bounty.tokenId}:`, err);
+          return { tokenId: bounty.tokenId, title: null };
         }
       });
 
       const results = await Promise.all(fetchPromises);
       const titles = {};
-      results.forEach(({ tokenId, text, title }) => {
-        texts[tokenId] = text;
+      results.forEach(({ tokenId, title }) => {
         titles[tokenId] = title;
       });
       setDescriptionTitles(titles);
       
       const totalTime = performance.now() - startTime;
-      console.log(`[Landing] Fetched ${bounties.length} descriptions in ${totalTime.toFixed(2)}ms (parallel)`);
-      setDescriptionTexts(texts);
+      console.log(`[Landing] Fetched ${bounties.length} titles in ${totalTime.toFixed(2)}ms (parallel)`);
     };
 
-    fetchDescriptions();
+    fetchTitles();
   }, [bounties, publicClient]);
 
   if (isLoading) {
@@ -164,19 +162,15 @@ const Landing = () => {
                       Bounty #{bounty.tokenId}
                     </div>
                   )}
-                  <div className="text-base-content/70 line-clamp-2 prose prose-sm max-w-none">
-                    {descriptionTexts[bounty.tokenId] ? (
-                      <MarkdownRenderer markdown={descriptionTexts[bounty.tokenId]} />
-                    ) : (
-                      <span>Loading description...</span>
-                    )}
-                  </div>
                   <div className="mt-4">
                     <div className="text-2xl font-bold text-primary">
                       {formatAmount(bounty.amount, bounty.tokenAddr)}
                     </div>
-                    <div className="text-sm text-base-content/60 mt-1">
-                      Created by: {bounty.creator?.slice(0, 6)}...{bounty.creator?.slice(-4)}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Avatar address={bounty.creator} size="sm" />
+                      <div className="text-sm text-base-content/60">
+                        <Username address={bounty.creator} />
+                      </div>
                     </div>
                   </div>
                   <div className="card-actions justify-end mt-4">

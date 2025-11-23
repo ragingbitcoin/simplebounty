@@ -31,7 +31,7 @@
     <% } %>
     
     <style>
-      /* Prevent scrollbars and ensure mobile-only layout */
+      /* Hide scrollbars but allow scrolling */
       * {
         -ms-overflow-style: none;  /* IE and Edge */
         scrollbar-width: none;  /* Firefox */
@@ -42,16 +42,16 @@
       html, body {
         margin: 0;
         padding: 0;
-        overflow: hidden;
-        height: 100vh;
-        width: 100vw;
-        position: fixed;
+        height: 100%;
+        width: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
         touch-action: pan-y;
       }
       #root {
-        height: 100vh;
-        width: 100vw;
-        overflow: hidden;
+        min-height: 100%;
+        width: 100%;
       }
     </style>
   </head>
