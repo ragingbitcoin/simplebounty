@@ -83,6 +83,15 @@ export const tokens = [
       11155111: '0xB82381A3fBD3FaFA77B3a7bE693342618240067b', // Sepolia
     },
   },
+  {
+    name: 'BIT',
+    symbol: 'BIT',
+    decimals: 18,
+    addresses: {
+      1: '0xa27b118c0770939295f052aE1b003366E5eF806F', // Mainnet
+      11155111: '0xa27b118c0770939295f052aE1b003366E5eF806F', // Sepolia
+    },
+  },
 ];
 
 /**
